@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Work {
+  id                String   @id
+  title             String
+  author            String
+  genre             String
+  hours             String
+  recommendedBy     String
+  volume            String?
+  photoUrl          String
+  summary           String
+  description       String?
+  launchYear        String?
+  originalLanguage  String?
+  countryOfOrigin   String?
+  authorDescription String?
+  coverFile         String?
+  isbn              String?
+  tags              Json?
+  collections       Json?
+  series            String?
+  apiData           Json?
+  readingSpans      Json?
+  
+  copies            Copy[]
+}
+
+model Copy {
+  id                String   @id
+  workId            String
+  work              Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  format            String
+  condition         String
+  shelfLocation     String
+  purchased         Boolean
+  purchasePrice     Float?
+  investedAmount    Float?
+  status            String
+  pdfPath           String?
+  currentPage       Int?
+  totalPages        Int?
+  lastReadTimestamp String?
+  readingSessions   Json?
+  rating            Int?
+  quotes            Json?
+  amazonLink        String?
+  loans             Json?
+}
