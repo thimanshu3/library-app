@@ -15,9 +15,12 @@ const plusJakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Folio — Personal Library',
-  description: 'Your gorgeous personal library command centre.',
-  keywords: ['library', 'books', 'reading', 'collection', 'tracker']
+  title: 'TaleTeacup',
+  description: 'Your cozy reading corner and personal library collection.',
+  keywords: ['taleteacup', 'library', 'books', 'reading', 'tracker', 'bookshelf'],
+  icons: {
+    icon: '/fav.jpg'
+  }
 }
 
 export default function RootLayout({
@@ -28,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${syne.variable} ${plusJakarta.variable} h-full antialiased`}
+      className={`${syne.variable} ${plusJakarta.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-jakarta bg-background text-foreground selection:bg-accent/30 selection:text-accent">
         {children}

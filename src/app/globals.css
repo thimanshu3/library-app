@@ -13,17 +13,17 @@
   --surface-3: #dbd8cc;
   --surface-warm: #fffdf8;
 
-  /* Primary (Accent — rose) */
-  --primary: #e57373;
-  --primary-dim: #ef9a9a;
-  --primary-container: #fde8e8;
+  /* Primary (TaleTeacup Rust) */
+  --primary: #c46a4f;
+  --primary-dim: #d37d64;
+  --primary-container: #fae4df;
   --on-primary: #ffffff;
-  --on-primary-container: #c62828;
+  --on-primary-container: #5c2415;
 
-  /* Secondary (Violet — promoted) */
-  --secondary: #7c5cfc;
-  --secondary-dim: #a78bfa;
-  --secondary-container: #ede9ff;
+  /* Secondary (Warm Cream/Beige) */
+  --secondary: #e38a71;
+  --secondary-dim: #f3a893;
+  --secondary-container: #fff1ed;
 
   /* Tertiary */
   --tertiary: #0d9f6e;
@@ -60,17 +60,17 @@
   --surface-3: #2a2f46;
   --surface-warm: #161924;
 
-  /* Primary (rose accent) — slightly dimmed in dark */
-  --primary: #ef9a9a;
-  --primary-dim: #e57373;
-  --primary-container: rgba(229,115,115,0.15);
+  /* Primary (TaleTeacup Rust) */
+  --primary: #e38a71;
+  --primary-dim: #c46a4f;
+  --primary-container: rgba(196, 106, 79, 0.2);
   --on-primary: #1e2330;
-  --on-primary-container: #ffcdd2;
+  --on-primary-container: #fae4df;
 
-  /* Secondary (violet) */
-  --secondary: #a78bfa;
-  --secondary-dim: #7c5cfc;
-  --secondary-container: rgba(124,92,252,0.15);
+  /* Secondary */
+  --secondary: #f3a893;
+  --secondary-dim: #e38a71;
+  --secondary-container: rgba(227, 138, 113, 0.2);
 
   /* Tertiary */
   --tertiary: #34d399;
