@@ -20,7 +20,7 @@ export default function LoanTracker({
   books: Book[]
   onEdit: (b: Book) => void
 }) {
-  const loanedBooks = books.filter(b => b.givenTo && b.givenTo.trim() !== '')
+  const loanedBooks = books.filter(b => b.loans && b.loans.some(l => !l.dateReturned))
 
   if (loanedBooks.length === 0) {
     return (
@@ -57,9 +57,27 @@ export default function LoanTracker({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {loanedBooks.map((book, i) => {
-          const daysOut = getDaysOut(book.loanDate)
-          const loanDateStr = formatDate(book.loanDate)
-          const isOverdue = daysOut !== null && daysOut > 30
+          const activeLoan = book.loans.find(l => !l.dateReturned)
+          if (!activeLoan) return null
+          
+          const daysOut = getDaysOut(activeLoan.dateLent)
+          const loanDateStr = formatDate(activeLoan.dateLent)
+          
+          let isOverdue = false
+          let dueStr = ''
+          if (activeLoan.expectedReturnDate) {
+            const dueDate = new Date(activeLoan.expectedReturnDate).getTime()
+            if (Date.now() > dueDate) {
+              isOverdue = true
+              dueStr = 'Past due'
+            } else {
+              const diffDays = Math.ceil((dueDate - Date.now()) / (1000 * 60 * 60 * 24))
+              dueStr = `Due in ${diffDays}d`
+            }
+          } else {
+            // Fallback overdue logic if no due date set
+            isOverdue = daysOut !== null && daysOut > 30
+          }
 
           return (
             <div
@@ -103,14 +121,14 @@ export default function LoanTracker({
                   <span className={`text-[10px] font-bold uppercase tracking-widest ${isOverdue ? 'text-red-500' : 'text-amber-600 dark:text-amber-500'}`}>
                     {isOverdue ? '⚠ Overdue' : 'Loaned To'}
                   </span>
-                  {daysOut !== null && (
+                  {(daysOut !== null || dueStr) && (
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isOverdue ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'}`}>
-                      {daysOut}d
+                      {dueStr || `${daysOut}d`}
                     </span>
                   )}
                 </div>
                 <span className={`text-base font-bold ${isOverdue ? 'text-red-700 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
-                  {book.givenTo}
+                  {activeLoan.borrowerName}
                 </span>
                 {loanDateStr && (
                   <span className={`text-xs ${isOverdue ? 'text-red-500 dark:text-red-400' : 'text-amber-600 dark:text-amber-500'}`}>

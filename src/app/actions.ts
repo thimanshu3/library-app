@@ -14,6 +14,7 @@ export async function fetchFilteredBooksAction(params: {
   yearFilter?: string
   formatFilter?: string
   purchasedFilter?: string
+  shelfFilter?: string
   sortBy?: string
   skip?: number
   take?: number
@@ -27,6 +28,7 @@ export async function fetchFilteredBooksAction(params: {
     yearFilter,
     formatFilter,
     purchasedFilter,
+    shelfFilter,
     sortBy = 'id',
     skip = 0,
     take = 20
@@ -62,11 +64,7 @@ export async function fetchFilteredBooksAction(params: {
       workWhereClause.author = authorFilter
     }
     if (yearFilter && yearFilter !== 'All') {
-      // Prisma doesn't natively cast strings to int in where clauses easily without raw SQL,
-      // but we can use string comparisons or we can pull all and filter.
-      // Since it's string: "1980" >= "1950" works lexicographically if length is same,
-      // but years can be 3 digits "900".
-      // We will do a raw SQL query if complex, but let's try to map it using raw if needed.
+      // Logic handled below
     }
 
     if (formatFilter && formatFilter !== 'All') {
@@ -76,6 +74,9 @@ export async function fetchFilteredBooksAction(params: {
       whereClause.purchased = true
     } else if (purchasedFilter === 'Not Purchased') {
       whereClause.purchased = false
+    }
+    if (shelfFilter && shelfFilter !== 'All') {
+      whereClause.shelfLocation = shelfFilter
     }
 
     // Combine work where clauses if they exist
@@ -319,5 +320,55 @@ export async function saveLibraryAction(works: BookWork[], copies: BookCopy[]) {
   } catch (error) {
     console.error('Failed to save library via Server Action:', error)
     return { error: 'Failed to save data' }
+  }
+}
+
+export async function importBooksAction(works: BookWork[], copies: BookCopy[]) {
+  try {
+    const mappedWorks = works.map((w: BookWork) => ({
+      ...w,
+      launchYear: w.launchYear ? String(w.launchYear) : '',
+      volume: w.volume ? String(w.volume) : ''
+    }))
+
+    const mappedCopies = copies.map((c: BookCopy) => ({
+      ...c,
+      format: c.format ? String(c.format) : '',
+      condition: c.condition ? String(c.condition) : '',
+      shelfLocation: c.shelfLocation ? String(c.shelfLocation) : '',
+      purchased: Boolean(c.purchased),
+      purchasePrice: c.purchasePrice ? Number(c.purchasePrice) : null,
+      investedAmount: c.investedAmount ? Number(c.investedAmount) : null,
+      status: c.status ? String(c.status) : '',
+      pdfPath: c.pdfPath ? String(c.pdfPath) : '',
+      currentPage: c.currentPage ? Number(c.currentPage) : null,
+      totalPages: c.totalPages ? Number(c.totalPages) : null,
+      lastReadTimestamp: c.lastReadTimestamp ? String(c.lastReadTimestamp) : '',
+      rating: c.rating ? Number(c.rating) : null,
+      amazonLink: c.amazonLink ? String(c.amazonLink) : ''
+    }))
+
+    await prisma.$transaction(async tx => {
+      for (const w of mappedWorks) {
+        await tx.work.upsert({
+          where: { id: w.id },
+          update: w as any,
+          create: w as any,
+        })
+      }
+      for (const c of mappedCopies) {
+        await tx.copy.upsert({
+          where: { id: c.id },
+          update: c as any,
+          create: c as any,
+        })
+      }
+    })
+
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to import books:', error)
+    return { error: 'Failed to import data' }
   }
 }

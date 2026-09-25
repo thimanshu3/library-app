@@ -57,7 +57,8 @@ const sidebarSelectClass = (dark: boolean) =>
     ? 'bg-white/[0.07] border border-white/[0.08] rounded-2xl p-3 text-sm focus:border-secondary/50 focus:outline-none focus:ring-2 focus:ring-secondary/15 appearance-none cursor-pointer text-white/70 w-full transition-all backdrop-blur-sm hover:border-white/[0.15]'
     : 'bg-[#fffdf8]/80 border border-slate-200/70 rounded-2xl p-3 text-sm focus:border-secondary/50 focus:outline-none focus:ring-2 focus:ring-secondary/15 appearance-none cursor-pointer text-slate-700 w-full transition-all backdrop-blur-sm hover:border-slate-300'
 
-import { fetchFilteredBooksAction, saveLibraryAction } from './actions'
+import Papa from 'papaparse'
+import { fetchFilteredBooksAction, saveLibraryAction, importBooksAction } from './actions'
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function LibraryClient({
@@ -142,7 +143,10 @@ export default function LibraryClient({
   const [yearFilter, setYearFilter] = useState('All')
   const [formatFilter, setFormatFilter] = useState('All')
   const [purchasedFilter, setPurchasedFilter] = useState('All')
+  const [shelfFilter, setShelfFilter] = useState('All')
   const [sortBy, setSortBy] = useState('id')
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [isBatchMode, setIsBatchMode] = useState(false)
@@ -280,6 +284,7 @@ export default function LibraryClient({
       yearFilter,
       formatFilter,
       purchasedFilter,
+      shelfFilter,
       sortBy,
       skip: 0,
       take: 20
@@ -306,6 +311,7 @@ export default function LibraryClient({
     yearFilter,
     formatFilter,
     purchasedFilter,
+    shelfFilter,
     sortBy
   ])
 
@@ -321,6 +327,7 @@ export default function LibraryClient({
       yearFilter,
       formatFilter,
       purchasedFilter,
+      shelfFilter,
       sortBy,
       skip,
       take: 20
@@ -342,6 +349,7 @@ export default function LibraryClient({
     yearFilter,
     formatFilter,
     purchasedFilter,
+    shelfFilter,
     sortBy,
     skip
   ])
@@ -377,7 +385,9 @@ export default function LibraryClient({
     if (finalBook.id === '') {
       const newId = `c_${Date.now()}`
       finalBook.id = newId
-      finalBook.workId = `w_${Date.now()}`
+      if (!finalBook.workId) {
+        finalBook.workId = `w_${Date.now()}`
+      }
       updatedBooks = [finalBook, ...books]
       toast('Book added to library', 'success')
     } else {
@@ -436,9 +446,46 @@ export default function LibraryClient({
 
   const handleSelectSearchedBook = (bookData: Partial<Book>) => {
     setIsAddingBook(false)
+
+    let workIdToUse = ''
+    let prefilledData = { ...bookData }
+
+    const duplicate = books.find(b => 
+      (bookData.isbn && b.isbn === bookData.isbn) ||
+      (b.title?.toLowerCase() === bookData.title?.toLowerCase() && b.author?.toLowerCase() === bookData.author?.toLowerCase())
+    )
+
+    if (duplicate) {
+      const addAsCopy = window.confirm(`You already own a copy of "${duplicate.title}". Do you want to add this as another copy to the same Work record?`)
+      if (addAsCopy) {
+        workIdToUse = duplicate.workId
+        prefilledData = {
+          ...prefilledData,
+          title: duplicate.title,
+          author: duplicate.author,
+          genre: duplicate.genre,
+          hours: duplicate.hours,
+          recommendedBy: duplicate.recommendedBy,
+          volume: duplicate.volume,
+          photoUrl: duplicate.photoUrl,
+          summary: duplicate.summary,
+          description: duplicate.description,
+          authorDescription: duplicate.authorDescription,
+          isbn: duplicate.isbn,
+          launchYear: duplicate.launchYear,
+          originalLanguage: duplicate.originalLanguage,
+          countryOfOrigin: duplicate.countryOfOrigin,
+          tags: duplicate.tags,
+          collections: duplicate.collections,
+          apiData: duplicate.apiData,
+          readingSpans: duplicate.readingSpans
+        }
+      }
+    }
+
     setEditingBook({
       id: (bookData.id || '') as string,
-      workId: '',
+      workId: workIdToUse,
       condition: 'Good',
       shelfLocation: '',
       title: 'New Book Title',
@@ -472,7 +519,7 @@ export default function LibraryClient({
       readingSpans: [],
       quotes: [],
       loans: [],
-      ...bookData
+      ...prefilledData
     })
   }
 
@@ -511,6 +558,7 @@ export default function LibraryClient({
     setYearFilter('All')
     setFormatFilter('All')
     setPurchasedFilter('All')
+    setShelfFilter('All')
     setSortBy('id')
   }
 
@@ -523,7 +571,17 @@ export default function LibraryClient({
     yearFilter !== 'All' ||
     formatFilter !== 'All' ||
     purchasedFilter !== 'All' ||
+    shelfFilter !== 'All' ||
     sortBy !== 'id'
+
+  const suggestNextRead = () => {
+    const unread = books.filter(b => b.status === 'Unread' || b.status === 'Wishlist')
+    if (unread.length > 0) {
+      setViewingBook(unread[Math.floor(Math.random() * unread.length)])
+    } else {
+      toast('No unread books available!', 'info')
+    }
+  }
 
   const checkWishlistPrices = async () => {
     const wishlistBooks = books.filter(
@@ -568,6 +626,93 @@ export default function LibraryClient({
     }
 
     setLoading(false)
+  }
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    toast('Importing CSV...', 'info')
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const worksMap = new Map<string, BookWork>()
+          const copies: BookCopy[] = []
+
+          results.data.forEach((row: any) => {
+            if (!row.Title) return // Skip invalid
+
+            let isbn = row.ISBN13 || row.ISBN || ''
+            isbn = isbn.replace(/^="(.+)"$/, '$1').trim()
+
+            const grShelf = (row['Exclusive Shelf'] || '').toLowerCase()
+            let status = 'Unread'
+            if (grShelf === 'read') status = 'Read'
+            if (grShelf === 'currently-reading') status = 'Reading'
+            if (grShelf === 'to-read') status = 'Wishlist'
+
+            const workId = `w_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+            const copyId = `c_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+            const work: BookWork = {
+              id: workId,
+              title: row.Title,
+              author: row['Author l-f'] || row.Author || 'Unknown',
+              genre: 'Uncategorized',
+              hours: '0',
+              recommendedBy: '',
+              volume: '',
+              photoUrl: '',
+              summary: '',
+              launchYear: row['Original Publication Year'] || row['Year Published'] || '',
+              description: '',
+              isbn: isbn,
+              tags: [],
+              collections: [],
+              apiData: {},
+              readingSpans: [],
+            }
+            worksMap.set(workId, work)
+
+            const copy: BookCopy = {
+              id: copyId,
+              workId: workId,
+              status: status,
+              rating: parseInt(row['My Rating']) || undefined,
+              format: row.Binding || 'Physical',
+              totalPages: parseInt(row['Number of Pages']) || undefined,
+              purchased: true,
+              condition: 'Good',
+              shelfLocation: '',
+              purchasePrice: 0,
+              investedAmount: 0,
+              readingSessions: [],
+              quotes: [],
+              loans: [],
+            }
+            copies.push(copy)
+          })
+
+          const res = await importBooksAction(Array.from(worksMap.values()), copies)
+          if (res.success) {
+            toast('Import successful! Refreshing...', 'success')
+            window.location.reload()
+          } else {
+            toast('Import failed', 'error')
+          }
+        } catch (error) {
+          toast('Error importing CSV', 'error')
+        }
+      },
+      error: () => {
+        toast('Failed to parse CSV', 'error')
+      }
+    })
+    
+    // reset input
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const exportLibrary = (format: 'json' | 'csv') => {
@@ -961,6 +1106,35 @@ export default function LibraryClient({
                 </select>
               </div>
 
+              {/* Shelf Location */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
+                  Physical Location
+                </label>
+                <select
+                  value={shelfFilter}
+                  onChange={e => setShelfFilter(e.target.value)}
+                  className={sidebarSelectClass(isDark)}
+                >
+                  <option value="All">Any Location</option>
+                  {Array.from(
+                    new Set(
+                      books
+                        .map(b => b.shelfLocation)
+                        .filter(Boolean)
+                        .map(l => String(l).trim())
+                    )
+                  )
+                    .filter(l => l.length > 0)
+                    .sort()
+                    .map(l => (
+                      <option key={l} value={l}>
+                        {l}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               {/* Purchased */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em]">
@@ -1170,8 +1344,28 @@ export default function LibraryClient({
                   >
                     <span>📊</span> Export CSV
                   </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-black/[0.04] text-left transition-colors flex items-center gap-2 border-t border-black/[0.05]"
+                  >
+                    <span>📥</span> Import Goodreads CSV
+                  </button>
+                  <input 
+                    type="file" 
+                    accept=".csv" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    onChange={handleImportCSV} 
+                  />
                 </div>
               </div>
+              <button
+                onClick={suggestNextRead}
+                className="px-3 py-1.5 h-9 shrink-0 rounded-2xl bg-white/70 border border-black/[0.07] flex items-center justify-center text-slate-600 font-bold text-xs hover:bg-white hover:border-black/[0.12] transition-all shadow-sm backdrop-blur-sm"
+                title="Suggest Next Read"
+              >
+                🎲 Read Next
+              </button>
               <button
                 onClick={toggleTheme}
                 className="w-9 h-9 shrink-0 rounded-2xl bg-white/70 border border-black/[0.07] flex items-center justify-center text-slate-500 hover:bg-white hover:border-black/[0.12] hover:scale-105 transition-all shadow-sm backdrop-blur-sm"

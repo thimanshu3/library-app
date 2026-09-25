@@ -255,20 +255,34 @@ export default function AddBookModal({
 
         // If no description, try fetching book info from Wikipedia
         if (!book.description && book.title && book.title !== 'Unknown Title') {
-          const wikiRes = await fetch(
-            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(book.title)}`
+          // Use Wikipedia Search API first with Title + Author to find the exact article
+          const queryTerm = book.isbn ? book.isbn : `${book.title} ${book.author === 'Unknown Author' ? '' : book.author}`.trim();
+          const searchRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(queryTerm)}&utf8=&format=json&origin=*`
           )
-          if (wikiRes.ok) {
-            const wikiData = await wikiRes.json()
-            if (wikiData.extract_html && wikiData.type !== 'disambiguation') {
-              window.dispatchEvent(
-                new CustomEvent('wiki-enrichment', {
-                  detail: {
-                    bookIsbn: book.isbn,
-                    description: wikiData.extract_html
-                  }
-                })
+          
+          if (searchRes.ok) {
+            const searchData = await searchRes.json()
+            if (searchData.query?.search?.length > 0) {
+              const bestMatchTitle = searchData.query.search[0].title
+              
+              // Now fetch the summary for the best match
+              const wikiRes = await fetch(
+                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestMatchTitle)}`
               )
+              if (wikiRes.ok) {
+                const wikiData = await wikiRes.json()
+                if (wikiData.extract_html && wikiData.type !== 'disambiguation') {
+                  window.dispatchEvent(
+                    new CustomEvent('wiki-enrichment', {
+                      detail: {
+                        bookIsbn: book.isbn,
+                        description: wikiData.extract_html
+                      }
+                    })
+                  )
+                }
+              }
             }
           }
         }
