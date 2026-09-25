@@ -39,6 +39,17 @@ export interface BookCopy {
   quotes: Quote[];
   amazonLink?: string;
   loans: LoanRecord[];
+  
+  // Goodreads CSV fields
+  dateRead?: string | null;
+  dateAdded?: string | null;
+  bookshelves?: string | null;
+  bookshelvesWithPositions?: string | null;
+  exclusiveShelf?: string | null;
+  myReview?: string | null;
+  spoiler?: string | null;
+  privateNotes?: string | null;
+  readCount?: number | null;
 }
 
 export interface ReadingSpan {
@@ -68,6 +79,15 @@ export interface BookWork {
   series?: { name: string; number: number } | null;
   apiData: { googleId?: string; openLibraryId?: string };
   readingSpans: ReadingSpan[];
+
+  // Goodreads CSV fields
+  goodreadsId?: string | null;
+  authorLF?: string | null;
+  additionalAuthors?: string | null;
+  publisher?: string | null;
+  yearPublished?: string | null;
+  originalPublicationYear?: string | null;
+  ownedCopies?: number | null;
 }
 
 // Flat structure for the UI
@@ -97,6 +117,14 @@ export interface JoinedBook {
   apiData: { googleId?: string; openLibraryId?: string };
   readingSpans: ReadingSpan[];
 
+  goodreadsId?: string | null;
+  authorLF?: string | null;
+  additionalAuthors?: string | null;
+  publisher?: string | null;
+  yearPublished?: string | null;
+  originalPublicationYear?: string | null;
+  ownedCopies?: number | null;
+
   // Copy fields
   format: string;
   condition: string;
@@ -114,6 +142,16 @@ export interface JoinedBook {
   quotes: Quote[];
   amazonLink?: string;
   loans: LoanRecord[];
+
+  dateRead?: string | null;
+  dateAdded?: string | null;
+  bookshelves?: string | null;
+  bookshelvesWithPositions?: string | null;
+  exclusiveShelf?: string | null;
+  myReview?: string | null;
+  spoiler?: string | null;
+  privateNotes?: string | null;
+  readCount?: number | null;
 
   // Legacy fields expected by UI
   shelfRow?: string;

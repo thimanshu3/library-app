@@ -229,7 +229,15 @@ export default function LibraryClient({
             collections: book.collections || [],
             series: book.series,
             apiData: book.apiData || {},
-            readingSpans: book.readingSpans || []
+            readingSpans: book.readingSpans || [],
+            // Goodreads fields
+            goodreadsId: book.goodreadsId,
+            authorLF: book.authorLF,
+            additionalAuthors: book.additionalAuthors,
+            publisher: book.publisher,
+            yearPublished: book.yearPublished,
+            originalPublicationYear: book.originalPublicationYear,
+            ownedCopies: book.ownedCopies,
           })
         }
 
@@ -251,7 +259,17 @@ export default function LibraryClient({
           rating: book.rating,
           quotes: book.quotes || [],
           amazonLink: book.amazonLink,
-          loans: book.loans || []
+          loans: book.loans || [],
+          // Goodreads fields
+          dateRead: book.dateRead,
+          dateAdded: book.dateAdded,
+          bookshelves: book.bookshelves,
+          bookshelvesWithPositions: book.bookshelvesWithPositions,
+          exclusiveShelf: book.exclusiveShelf,
+          myReview: book.myReview,
+          spoiler: book.spoiler,
+          privateNotes: book.privateNotes,
+          readCount: book.readCount,
         })
       })
 
@@ -673,6 +691,14 @@ export default function LibraryClient({
               collections: [],
               apiData: {},
               readingSpans: [],
+              // New Goodreads fields
+              goodreadsId: row['Book Id'] || null,
+              authorLF: row['Author l-f'] || null,
+              additionalAuthors: row['Additional Authors'] || null,
+              publisher: row['Publisher'] || null,
+              yearPublished: row['Year Published'] || null,
+              originalPublicationYear: row['Original Publication Year'] || null,
+              ownedCopies: parseInt(row['Owned Copies']) || null,
             }
             worksMap.set(workId, work)
 
@@ -691,6 +717,16 @@ export default function LibraryClient({
               readingSessions: [],
               quotes: [],
               loans: [],
+              // New Goodreads fields
+              dateRead: row['Date Read'] || null,
+              dateAdded: row['Date Added'] || null,
+              bookshelves: row['Bookshelves'] || null,
+              bookshelvesWithPositions: row['Bookshelves with positions'] || null,
+              exclusiveShelf: row['Exclusive Shelf'] || null,
+              myReview: row['My Review'] || null,
+              spoiler: row['Spoiler'] || null,
+              privateNotes: row['Private Notes'] || null,
+              readCount: parseInt(row['Read Count']) || null,
             }
             copies.push(copy)
           })

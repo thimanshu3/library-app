@@ -9,49 +9,69 @@ datasource db {
 }
 
 model Work {
-  id                String   @id
-  title             String
-  author            String
-  genre             String
-  hours             String
-  recommendedBy     String
-  volume            String?
-  photoUrl          String
-  summary           String
-  description       String?
-  launchYear        String?
-  originalLanguage  String?
-  countryOfOrigin   String?
-  authorDescription String?
-  coverFile         String?
-  isbn              String?
-  tags              Json?
-  collections       Json?
-  series            String?
-  apiData           Json?
-  readingSpans      Json?
+  id                      String   @id
+  title                   String
+  author                  String
+  genre                   String
+  hours                   String
+  recommendedBy           String
+  volume                  String?
+  photoUrl                String
+  summary                 String
+  description             String?
+  launchYear              String?
+  originalLanguage        String?
+  countryOfOrigin         String?
+  authorDescription       String?
+  coverFile               String?
+  isbn                    String?
+  tags                    Json?
+  collections             Json?
+  series                  String?
+  apiData                 Json?
+  readingSpans            Json?
   
-  copies            Copy[]
+  // Goodreads CSV fields
+  goodreadsId             String?
+  authorLF                String?
+  additionalAuthors       String?
+  publisher               String?
+  yearPublished           String?
+  originalPublicationYear String?
+  ownedCopies             Int?
+
+  copies                  Copy[]
 }
 
 model Copy {
-  id                String   @id
-  workId            String
-  work              Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
-  format            String
-  condition         String
-  shelfLocation     String
-  purchased         Boolean
-  purchasePrice     Float?
-  investedAmount    Float?
-  status            String
-  pdfPath           String?
-  currentPage       Int?
-  totalPages        Int?
-  lastReadTimestamp String?
-  readingSessions   Json?
-  rating            Int?
-  quotes            Json?
-  amazonLink        String?
-  loans             Json?
+  id                       String   @id
+  workId                   String
+  work                     Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  format                   String
+  condition                String
+  shelfLocation            String
+  purchased                Boolean
+  purchasePrice            Float?
+  investedAmount           Float?
+  status                   String
+  pdfPath                  String?
+  currentPage              Int?
+  totalPages               Int?
+  lastReadTimestamp        String?
+  readingSessions          Json?
+  rating                   Int?
+  quotes                   Json?
+  amazonLink               String?
+  loans                    Json?
+  
+  // Goodreads CSV fields
+  dateRead                 String?
+  dateAdded                String?
+  bookshelves              String?
+  bookshelvesWithPositions String?
+  exclusiveShelf           String?
+  myReview                 String?
+  spoiler                  String?
+  privateNotes             String?
+  readCount                Int?
 }

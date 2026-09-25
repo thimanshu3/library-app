@@ -210,6 +210,14 @@ export async function fetchFilteredBooksAction(params: {
         apiData: (work?.apiData as { googleId?: string; openLibraryId?: string }) || {},
         readingSpans: (work?.readingSpans as unknown as ReadingSpan[]) || [],
 
+        goodreadsId: work?.goodreadsId || null,
+        authorLF: work?.authorLF || null,
+        additionalAuthors: work?.additionalAuthors || null,
+        publisher: work?.publisher || null,
+        yearPublished: work?.yearPublished || null,
+        originalPublicationYear: work?.originalPublicationYear || null,
+        ownedCopies: work?.ownedCopies || null,
+
         format: copy.format || '',
         condition: copy.condition || '',
         shelfLocation: copy.shelfLocation || '',
@@ -226,6 +234,16 @@ export async function fetchFilteredBooksAction(params: {
         quotes: (copy.quotes as unknown as Quote[]) || [],
         amazonLink: copy.amazonLink || '',
         loans: (copy.loans as unknown as LoanRecord[]) || [],
+        
+        dateRead: copy.dateRead || null,
+        dateAdded: copy.dateAdded || null,
+        bookshelves: copy.bookshelves || null,
+        bookshelvesWithPositions: copy.bookshelvesWithPositions || null,
+        exclusiveShelf: copy.exclusiveShelf || null,
+        myReview: copy.myReview || null,
+        spoiler: copy.spoiler || null,
+        privateNotes: copy.privateNotes || null,
+        readCount: copy.readCount || null,
 
         givenTo: (copy.loans as unknown as LoanRecord[])?.[0]?.borrowerName || '',
         loanDate: (copy.loans as unknown as LoanRecord[])?.[0]?.dateLent || '',
