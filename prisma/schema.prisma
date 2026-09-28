@@ -25,6 +25,9 @@ model Work {
   authorDescription       String?
   coverFile               String?
   isbn                    String?
+  isbn13                  String?
+  binding                 String?
+  pageCount               Int?
   tags                    Json?
   collections             Json?
   series                  String?
