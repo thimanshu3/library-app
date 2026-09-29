@@ -9,7 +9,7 @@ datasource db {
 }
 
 model Work {
-  id                      String   @id
+  id                      String  @id
   title                   String
   author                  String
   genre                   String
@@ -25,31 +25,27 @@ model Work {
   authorDescription       String?
   coverFile               String?
   isbn                    String?
-  isbn13                  String?
-  binding                 String?
-  pageCount               Int?
   tags                    Json?
   collections             Json?
   series                  String?
   apiData                 Json?
   readingSpans            Json?
-  
-  // Goodreads CSV fields
-  goodreadsId             String?
-  authorLF                String?
   additionalAuthors       String?
-  publisher               String?
-  yearPublished           String?
+  authorLF                String?
+  goodreadsId             String?
   originalPublicationYear String?
   ownedCopies             Int?
-
+  publisher               String?
+  yearPublished           String?
+  binding                 String?
+  isbn13                  String?
+  pageCount               Int?
   copies                  Copy[]
 }
 
 model Copy {
-  id                       String   @id
+  id                       String  @id
   workId                   String
-  work                     Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
   format                   String
   condition                String
   shelfLocation            String
@@ -66,15 +62,14 @@ model Copy {
   quotes                   Json?
   amazonLink               String?
   loans                    Json?
-  
-  // Goodreads CSV fields
-  dateRead                 String?
-  dateAdded                String?
   bookshelves              String?
   bookshelvesWithPositions String?
+  dateAdded                String?
+  dateRead                 String?
   exclusiveShelf           String?
   myReview                 String?
-  spoiler                  String?
   privateNotes             String?
   readCount                Int?
+  spoiler                  String?
+  work                     Work    @relation(fields: [workId], references: [id], onDelete: Cascade)
 }

@@ -97,10 +97,9 @@ export async function fetchFilteredBooksAction(params: {
     } else if (sortBy === 'year') {
       orderBy = { work: { launchYear: 'desc' } }
     } else if (sortBy === 'id') {
-      // Numerical sort in Prisma is not natively supported on string IDs without raw queries.
-      // Easiest is to sort alphanumeric and accept it for now, or use queryRaw.
-      // We will just do alphanumeric on `id`
-      orderBy = { id: 'asc' }
+      // Numeric sort on string IDs like "w_1", "w_10", "w_100"
+      // We handle this via post-sort after fetching (see below)
+      orderBy = { id: 'asc' } // fallback; actual numeric sort done below
     }
 
     // Since we need to join Copy and Work
@@ -159,8 +158,8 @@ export async function fetchFilteredBooksAction(params: {
       // If sortBy === 'id', do the numeric sort the user wanted here too to fix the sorting issue
       if (sortBy === 'id') {
         filteredAll.sort((a, b) => {
-          const numA = parseInt(a.workId.replace(/\\D/g, '')) || 0
-          const numB = parseInt(b.workId.replace(/\\D/g, '')) || 0
+          const numA = parseInt(a.workId.replace(/\D/g, '')) || 0
+          const numB = parseInt(b.workId.replace(/\D/g, '')) || 0
           return numA - numB
         })
       }
@@ -175,8 +174,8 @@ export async function fetchFilteredBooksAction(params: {
           include: { work: true }
         })
         allCopies.sort((a, b) => {
-          const numA = parseInt(a.workId.replace(/\\D/g, '')) || 0
-          const numB = parseInt(b.workId.replace(/\\D/g, '')) || 0
+          const numA = parseInt(a.workId.replace(/\D/g, '')) || 0
+          const numB = parseInt(b.workId.replace(/\D/g, '')) || 0
           return numA - numB
         })
         copies = allCopies.slice(skip, skip + take)
@@ -326,11 +325,20 @@ export async function saveLibraryAction(works: BookWork[], copies: BookCopy[]) {
     }))
 
     await prisma.$transaction(async tx => {
-      await tx.copy.deleteMany()
-      await tx.work.deleteMany()
-
-      await tx.work.createMany({ data: mappedWorks as unknown as Prisma.WorkCreateManyInput[] })
-      await tx.copy.createMany({ data: mappedCopies as unknown as Prisma.CopyCreateManyInput[] })
+      for (const w of mappedWorks) {
+        await tx.work.upsert({
+          where: { id: w.id },
+          update: w as any,
+          create: w as any,
+        })
+      }
+      for (const c of mappedCopies) {
+        await tx.copy.upsert({
+          where: { id: c.id },
+          update: c as any,
+          create: c as any,
+        })
+      }
     })
 
     revalidatePath('/')
