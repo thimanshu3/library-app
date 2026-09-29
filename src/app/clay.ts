@@ -28,7 +28,7 @@ export const palette = (dark: boolean) => ({
   title: dark ? '#f5f6fb' : '#1c2133',
   body: dark ? 'rgba(255,255,255,.64)' : '#59627a',
   faint: dark ? 'rgba(255,255,255,.4)' : '#8b93a8',
-  accent: dark ? '#a58bff' : '#7c5cfc'
+  accent: dark ? '#e38a71' : '#c46a4f'
 })
 
 // Solid, glossy clay button / badge
@@ -49,7 +49,7 @@ export const statusTheme: Record<
 > = {
   All: { rgb: '59,66,102', from: '#5b6491', to: '#343b63' },
   Unread: { rgb: '100,116,139', from: '#94a3b8', to: '#64748b' },
-  Reading: { rgb: '124,92,252', from: '#a58bff', to: '#7c5cfc' },
+  Reading: { rgb: '196,106,79', from: '#e38a71', to: '#c46a4f' },
   Read: { rgb: '16,185,129', from: '#4fe0b0', to: '#10b981' },
   Wishlist: { rgb: '59,130,246', from: '#7ab4ff', to: '#3b82f6' }
 }

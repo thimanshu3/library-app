@@ -246,8 +246,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 252, 0.35); }
-  50% { box-shadow: 0 0 0 8px rgba(124, 92, 252, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(196, 106, 79, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(196, 106, 79, 0); }
 }
 
 @keyframes shimmer {
@@ -345,7 +345,7 @@ body {
    Selection
    ────────────────────────────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(124, 92, 252, 0.22);
+  background: rgba(196, 106, 79, 0.22);
   color: inherit;
 }
 
@@ -392,7 +392,7 @@ body {
    Premium gradient text
    ────────────────────────────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #7c5cfc 0%, #a78bfa 45%, #e57373 100%);
+  background: linear-gradient(135deg, #c46a4f 0%, #e38a71 45%, #f3a893 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -410,8 +410,8 @@ body {
    ────────────────────────────────────────────────────────────────────────── */
 .cover-glow:hover {
   box-shadow:
-    0 0 0 2px rgba(124, 92, 252, 0.5),
-    0 20px 60px -10px rgba(124, 92, 252, 0.3);
+    0 0 0 2px rgba(196, 106, 79, 0.5),
+    0 20px 60px -10px rgba(196, 106, 79, 0.3);
 }
 
 .glow-accent {
@@ -424,9 +424,9 @@ body {
    Pill tabs with active pill indicator
    ────────────────────────────────────────────────────────────────────────── */
 .tab-pill-active {
-  background: rgba(124, 92, 252, 0.1);
-  color: #7c5cfc;
-  border: 1px solid rgba(124, 92, 252, 0.2);
+  background: rgba(196, 106, 79, 0.1);
+  color: #c46a4f;
+  border: 1px solid rgba(196, 106, 79, 0.2);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

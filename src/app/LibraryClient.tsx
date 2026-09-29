@@ -240,7 +240,7 @@ function ClayButton({
       className="w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50"
       style={
         active
-          ? clayFill('124,92,252', '#a58bff', '#7c5cfc', 3)
+          ? clayFill('196,106,79', '#e38a71', '#c46a4f', 3)
           : {
               background: P.panel,
               color: P.body,
@@ -1181,7 +1181,7 @@ export default function LibraryClient({
           <button
             onClick={resetFilters}
             className="mt-4 px-5 py-2 rounded-full text-sm font-bold transition-transform hover:scale-105 active:scale-95"
-            style={clayFill('124,92,252', '#a58bff', '#7c5cfc', 4)}
+            style={clayFill('196,106,79', '#e38a71', '#c46a4f', 4)}
           >
             Reset all filters
           </button>
@@ -1232,7 +1232,7 @@ export default function LibraryClient({
     <>
       {loading && books.length > 0 && (
         <div className="fixed top-0 left-0 w-full h-1 z-[100] bg-transparent">
-          <div className="h-full bg-secondary w-full origin-left animate-pulse shadow-[0_0_10px_#7c5cfc]"></div>
+          <div className="h-full bg-secondary w-full origin-left animate-pulse shadow-[0_0_10px_#c46a4f]"></div>
         </div>
       )}
       <div
@@ -1248,7 +1248,7 @@ export default function LibraryClient({
             className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-3xl"
             style={{
               background: isDark
-                ? 'rgba(124,92,252,.18)'
+                ? 'rgba(196,106,79,.18)'
                 : 'rgba(167,139,250,.35)'
             }}
           />
@@ -1392,7 +1392,7 @@ export default function LibraryClient({
                   <span
                     className="w-2 h-2 rounded-full animate-pulse"
                     style={{
-                      background: 'linear-gradient(145deg,#a58bff,#7c5cfc)'
+                      background: 'linear-gradient(145deg,#e38a71,#c46a4f)'
                     }}
                   />
                   Reading now
@@ -1454,7 +1454,7 @@ export default function LibraryClient({
                               style={{
                                 width: `${Math.max(pct, 8)}%`,
                                 background:
-                                  'linear-gradient(90deg,#a58bff,#7c5cfc)'
+                                  'linear-gradient(90deg,#e38a71,#c46a4f)'
                               }}
                             />
                           </div>
@@ -1488,7 +1488,7 @@ export default function LibraryClient({
               <div className="lg:hidden flex items-center gap-2">
                 <div
                   className="w-9 h-9 rounded-2xl flex items-center justify-center"
-                  style={clayFill('124,92,252', '#a58bff', '#7c5cfc', 3)}
+                  style={clayFill('196,106,79', '#e38a71', '#c46a4f', 3)}
                 >
                   <Icon d={paths.book} />
                 </div>
@@ -1562,7 +1562,7 @@ export default function LibraryClient({
                 onClick={suggestNextRead}
                 title="Suggest next read"
                 className="h-10 px-3 sm:px-4 shrink-0 rounded-2xl flex items-center gap-2 text-xs font-bold transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
-                style={clayFill('124,92,252', '#a58bff', '#7c5cfc', 4)}
+                style={clayFill('196,106,79', '#e38a71', '#c46a4f', 4)}
               >
                 <Icon d={paths.sparkles} className="w-4 h-4" />
                 <span className="hidden sm:inline">Read next</span>
@@ -1757,7 +1757,7 @@ export default function LibraryClient({
                     <div className="hidden sm:flex flex-col items-end gap-1.5">
                       <span
                         className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                        style={chipStyle('124,92,252')}
+                        style={chipStyle('196,106,79')}
                       >
                         {genreName[book.genre] || book.genre}
                       </span>
@@ -1899,7 +1899,7 @@ export default function LibraryClient({
                             </h3>
                             <span
                               className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full"
-                              style={chipStyle('124,92,252')}
+                              style={chipStyle('196,106,79')}
                             >
                               {authorBooks.length} book
                               {authorBooks.length !== 1 ? 's' : ''}
@@ -1988,7 +1988,7 @@ export default function LibraryClient({
           <button
             onClick={handleAddBook}
             className="absolute bottom-6 right-6 w-16 h-16 rounded-full z-30 flex items-center justify-center group animate-float hover:animate-none hover:scale-110 active:scale-95 transition-transform"
-            style={clayFill('124,92,252', '#a58bff', '#7c5cfc', 6)}
+            style={clayFill('196,106,79', '#e38a71', '#c46a4f', 6)}
             title="Add new book"
             aria-label="Add new book"
           >

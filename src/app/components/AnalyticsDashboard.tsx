@@ -158,7 +158,7 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
         </div>
         <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-accent via-violet-500 to-purple-500 rounded-full transition-all duration-700"
+            className="h-full bg-gradient-to-r from-accent via-secondary to-primary-dim rounded-full transition-all duration-700"
             style={{ width: `${pct}%` }}
           />
         </div>

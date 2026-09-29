@@ -160,7 +160,7 @@ const Icon = ({
 function Chip({
   children,
   dark,
-  rgb = '124,92,252',
+  rgb = '196,106,79',
   fg,
   pulse
 }: {
@@ -465,7 +465,7 @@ export default function BookViewModal({
 
       {book.summary && (
         <Section icon={paths.edit} title="My notes" dark={isDark}>
-          <Well dark={isDark} tint="124,92,252">
+          <Well dark={isDark} tint="196,106,79">
             <ExpandableText text={book.summary} limit={280} dark={isDark} />
           </Well>
         </Section>
@@ -617,7 +617,7 @@ export default function BookViewModal({
             {book.currentPage && totalPages > 0 && (
               <Well
                 dark={isDark}
-                tint="124,92,252"
+                tint="196,106,79"
                 className="flex items-center gap-4 !p-3.5"
               >
                 <div className="flex-1">
@@ -638,7 +638,7 @@ export default function BookViewModal({
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.max(8, Math.min(100, Math.round((book.currentPage / totalPages) * 100)))}%`,
-                        background: 'linear-gradient(90deg,#a58bff,#7c5cfc)'
+                        background: 'linear-gradient(90deg,#e38a71,#c46a4f)'
                       }}
                     />
                   </div>
@@ -928,8 +928,8 @@ export default function BookViewModal({
           className="rounded-[24px] p-4 flex flex-col gap-3"
           style={{
             background: isDark
-              ? 'rgba(124,92,252,.16)'
-              : 'rgba(124,92,252,.09)',
+              ? 'rgba(196,106,79,.16)'
+              : 'rgba(196,106,79,.09)',
             boxShadow: Vs(3, 8)
           }}
         >
@@ -941,8 +941,8 @@ export default function BookViewModal({
               <span
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{
-                  background: 'linear-gradient(145deg,#a58bff,#7c5cfc)',
-                  boxShadow: '0 0 6px rgba(124,92,252,.6)'
+                  background: 'linear-gradient(145deg,#e38a71,#c46a4f)',
+                  boxShadow: '0 0 6px rgba(196,106,79,.6)'
                 }}
               />
               <div>
@@ -1068,7 +1068,7 @@ export default function BookViewModal({
             <button
               onClick={onReadPdf}
               className={actionCls}
-              style={clayFill('124,92,252', '#a58bff', '#7c5cfc', 4)}
+              style={clayFill('196,106,79', '#e38a71', '#c46a4f', 4)}
             >
               <Icon d={paths.book} className="w-4 h-4" stroke={2.5} />
               Read document

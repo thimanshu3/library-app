@@ -132,7 +132,7 @@ type Status = 'Unread' | 'Reading' | 'Read'
 
 const accents: Record<Status, { rgb: string; main: string; light: string }> = {
   Unread: { rgb: '100,116,139', main: '#64748b', light: '#a3b1c6' },
-  Reading: { rgb: '124,92,252', main: '#7c5cfc', light: '#a58bff' },
+  Reading: { rgb: '196,106,79', main: '#c46a4f', light: '#e38a71' },
   Read: { rgb: '16,185,129', main: '#10b981', light: '#4fe0b0' }
 }
 
