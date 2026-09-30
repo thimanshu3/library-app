@@ -16,12 +16,12 @@ function StatChip({ label, value, sub, dotColor }: StatChipProps) {
       {dotColor && (
         <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
       )}
-      <span className="text-[11px] font-black tracking-wider uppercase text-slate-500">
+      <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: 'var(--on-surface-variant)' }}>
         {label}
       </span>
-      <span className="text-sm font-black text-slate-900 tabular-nums">
+      <span className="text-sm font-black tabular-nums" style={{ color: 'var(--on-surface)' }}>
         {value}
-        {sub && <span className="text-slate-400 font-semibold ml-0.5">{sub}</span>}
+        {sub && <span className="font-semibold ml-0.5" style={{ color: 'var(--on-surface-variant)' }}>{sub}</span>}
       </span>
     </div>
   )

@@ -474,6 +474,8 @@ export default function LibraryClient({
 
   const [isDark, setIsDark] = useState(false)
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -506,6 +508,21 @@ export default function LibraryClient({
     window.addEventListener('wiki-enrichment', handler)
     return () => window.removeEventListener('wiki-enrichment', handler)
   }, [])
+
+  // ── Close export menu when clicking outside ────────────────────────────────
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (
+        exportMenuRef.current &&
+        !exportMenuRef.current.contains(e.target as Node)
+      ) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [exportMenuOpen])
 
   const toggleTheme = () => {
     const next = !isDark
@@ -605,6 +622,13 @@ export default function LibraryClient({
       return
     }
 
+    // Skip server fetch for views that show local-only data
+    const localOnlyViews: ViewMode[] = ['analytics', 'loans', 'wishlist']
+    if (localOnlyViews.includes(viewMode)) {
+      setLoading(false)
+      return
+    }
+
     let active = true
     setLoading(true)
 
@@ -645,7 +669,8 @@ export default function LibraryClient({
     formatFilter,
     purchasedFilter,
     shelfFilter,
-    sortBy
+    sortBy,
+    viewMode
   ])
 
   const loadMore = useCallback(async () => {
@@ -1525,37 +1550,70 @@ export default function LibraryClient({
               </div>
 
               {/* Export / import menu */}
-              <div className="relative group">
-                <ClayButton dark={isDark} title="Export and import">
+              <div className="relative" ref={exportMenuRef}>
+                <ClayButton
+                  dark={isDark}
+                  title="Export and import"
+                  onClick={() => setExportMenuOpen(o => !o)}
+                >
                   <Icon d={paths.download} />
                 </ClayButton>
-                <div className="absolute right-0 top-full pt-2 z-50 hidden group-hover:block group-focus-within:block">
-                  <div
-                    className="rounded-[22px] p-1.5 min-w-[200px] flex flex-col gap-0.5"
-                    style={{ background: P.panel, boxShadow: R(8, 22) }}
-                  >
-                    {[
-                      {
-                        label: 'Export JSON',
-                        run: () => exportLibrary('json')
-                      },
-                      { label: 'Export CSV', run: () => exportLibrary('csv') },
-                      {
-                        label: 'Import Goodreads CSV',
-                        run: () => fileInputRef.current?.click()
-                      }
-                    ].map(item => (
-                      <button
-                        key={item.label}
-                        onClick={item.run}
-                        className="px-4 py-2.5 rounded-2xl text-xs font-bold text-left transition-colors hover:bg-secondary/10"
-                        style={{ color: P.body }}
+                {exportMenuOpen && (
+                  <div className="absolute right-0 top-full pt-2 z-[999] animate-scale-in origin-top-right">
+                    <div
+                      className="rounded-[22px] p-1.5 min-w-[210px] flex flex-col gap-0.5"
+                      style={{ background: P.panel, boxShadow: R(10, 28) }}
+                    >
+                      <p
+                        className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest"
+                        style={{ color: P.faint }}
                       >
-                        {item.label}
-                      </button>
-                    ))}
+                        Export &amp; Import
+                      </p>
+                      {[
+                        {
+                          icon: '↓',
+                          label: 'Export JSON',
+                          run: () => {
+                            exportLibrary('json')
+                            setExportMenuOpen(false)
+                          }
+                        },
+                        {
+                          icon: '↓',
+                          label: 'Export CSV',
+                          run: () => {
+                            exportLibrary('csv')
+                            setExportMenuOpen(false)
+                          }
+                        },
+                        {
+                          icon: '↑',
+                          label: 'Import Goodreads CSV',
+                          run: () => {
+                            fileInputRef.current?.click()
+                            setExportMenuOpen(false)
+                          }
+                        }
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          onClick={item.run}
+                          className="px-4 py-2.5 rounded-[16px] text-xs font-semibold text-left transition-all hover:scale-[1.01] active:scale-[0.98] flex items-center gap-3"
+                          style={{ color: P.body }}
+                        >
+                          <span
+                            className="w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0"
+                            style={{ background: P.well, color: P.accent }}
+                          >
+                            {item.icon}
+                          </span>
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <button
@@ -1589,7 +1647,29 @@ export default function LibraryClient({
                 return (
                   <button
                     key={id}
-                    onClick={() => setViewMode(id)}
+                    onClick={() => {
+                      // Reset filters when switching to/from special views
+                      const specialViews: ViewMode[] = [
+                        'analytics',
+                        'loans',
+                        'wishlist'
+                      ]
+                      if (
+                        specialViews.includes(id) ||
+                        specialViews.includes(viewMode)
+                      ) {
+                        setSearch('')
+                        setStatusFilter('All')
+                        setGenreFilter('All')
+                        setAuthorFilter('All')
+                        setVolumeFilter('All')
+                        setYearFilter('All')
+                        setFormatFilter('All')
+                        setPurchasedFilter('All')
+                        setShelfFilter('All')
+                      }
+                      setViewMode(id)
+                    }}
                     className={`px-4 py-2 rounded-2xl text-[12px] font-bold transition-all duration-200 whitespace-nowrap shrink-0 ${on ? '' : 'opacity-75 hover:opacity-100'}`}
                     style={
                       on

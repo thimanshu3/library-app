@@ -9,21 +9,21 @@ import {
 } from 'recharts'
 
 const COLORS = [
-  '#6558f5', '#a78bfa', '#34d399', '#f59e0b',
-  '#ec4899', '#3b82f6', '#f97316', '#14b8a6',
+  '#c46a4f', '#e38a71', '#34d399', '#f59e0b',
+  '#ec4899', '#0d9f6e', '#f97316', '#8a7d6e',
 ]
 
 const tooltipStyle = {
   contentStyle: {
     borderRadius: '16px',
     border: 'none',
-    boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)',
+    boxShadow: '0 20px 40px -8px rgba(80,60,40,0.25)',
     background: 'var(--surface-2)',
     color: 'var(--on-surface)',
     fontSize: '12px',
     fontWeight: '600',
   },
-  cursor: { fill: 'rgba(101, 88, 245, 0.08)' },
+  cursor: { fill: 'rgba(196, 106, 79, 0.08)' },
 }
 
 interface KpiCardProps {
@@ -34,14 +34,20 @@ interface KpiCardProps {
   icon?: React.ReactNode
 }
 
-function KpiCard({ label, value, sub, color = 'text-slate-900 dark:text-white', icon }: KpiCardProps) {
+function KpiCard({ label, value, sub, color = '', icon }: KpiCardProps) {
   return (
-    <div className="bg-white dark:bg-slate-900/50 p-5 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-3">
-      {icon && <div className="text-slate-400">{icon}</div>}
+    <div
+      className="p-5 rounded-[24px] shadow-sm flex flex-col gap-3"
+      style={{
+        background: 'var(--surface-warm)',
+        border: '1px solid var(--outline-variant)'
+      }}
+    >
+      {icon && <div style={{ color: 'var(--on-surface-variant)' }}>{icon}</div>}
       <div>
-        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">{label}</span>
-        <span className={`text-4xl font-black ${color}`}>{value}</span>
-        {sub && <span className="text-sm text-slate-400 ml-2">{sub}</span>}
+        <span className="text-xs font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--on-surface-variant)' }}>{label}</span>
+        <span className={`text-4xl font-black ${color}`} style={color ? undefined : { color: 'var(--on-surface)' }}>{value}</span>
+        {sub && <span className="text-sm ml-2" style={{ color: 'var(--on-surface-variant)' }}>{sub}</span>}
       </div>
     </div>
   )
@@ -88,8 +94,8 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
   // Status bar data
   const statusData = [
     { name: 'Read', count: readBooks.length, fill: '#34d399' },
-    { name: 'Reading', count: reading.length, fill: '#6558f5' },
-    { name: 'Unread', count: books.filter(b => b.status === 'Unread').length, fill: '#64748b' },
+    { name: 'Reading', count: reading.length, fill: '#c46a4f' },
+    { name: 'Unread', count: books.filter(b => b.status === 'Unread').length, fill: '#8a7d6e' },
   ]
 
   // Format breakdown
@@ -101,22 +107,28 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
     <div className="flex flex-col gap-8 animate-fade-in">
       {/* Goal & Heatmap Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 bg-white dark:bg-slate-900/50 p-6 rounded-[32px] border border-slate-200 dark:border-slate-800 flex flex-col justify-center items-center text-center gap-4">
-          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{new Date().getFullYear()} Reading Goal</h3>
+        <div
+          className="lg:col-span-1 p-6 rounded-[32px] flex flex-col justify-center items-center text-center gap-4"
+          style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+        >
+          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>{new Date().getFullYear()} Reading Goal</h3>
           <div className="relative w-32 h-32 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-100 dark:text-slate-800" />
+              <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" style={{ color: 'var(--outline-variant)' }} />
               <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * goalProgress) / 100} className="text-accent transition-all duration-1000" strokeLinecap="round" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-3xl font-black text-slate-800 dark:text-white">{readThisYear}</span>
-              <span className="text-xs font-bold text-slate-400">/ {yearlyGoal}</span>
+              <span className="text-3xl font-black" style={{ color: 'var(--on-surface)' }}>{readThisYear}</span>
+              <span className="text-xs font-bold" style={{ color: 'var(--on-surface-variant)' }}>/ {yearlyGoal}</span>
             </div>
           </div>
           <p className="text-sm font-bold text-accent">{goalProgress}% Complete</p>
         </div>
         
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900/50 p-6 rounded-[32px] border border-slate-200 dark:border-slate-800">
+        <div
+          className="lg:col-span-2 p-6 rounded-[32px]"
+          style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+        >
           <ReadingHeatmap books={books} />
         </div>
       </div>
@@ -151,22 +163,25 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
       </div>
 
       {/* Progress bar */}
-      <div className="bg-white dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div
+        className="p-6 rounded-[24px] shadow-sm"
+        style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+      >
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Library Completion</h3>
-          <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{pct}%</span>
+          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>Library Completion</h3>
+          <span className="text-sm font-bold" style={{ color: 'var(--on-surface)' }}>{pct}%</span>
         </div>
-        <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--outline-variant)' }}>
           <div
             className="h-full bg-gradient-to-r from-accent via-secondary to-primary-dim rounded-full transition-all duration-700"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <div className="flex gap-6 mt-4 text-xs text-slate-500">
+        <div className="flex gap-6 mt-4 text-xs" style={{ color: 'var(--on-surface-variant)' }}>
           {statusData.map(s => (
             <div key={s.name} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.fill }} />
-              <span>{s.name}: <strong className="text-slate-700 dark:text-slate-300">{s.count}</strong></span>
+              <span>{s.name}: <strong style={{ color: 'var(--on-surface)' }}>{s.count}</strong></span>
             </div>
           ))}
         </div>
@@ -175,8 +190,11 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Genre pie */}
-        <div className="bg-white dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 h-96">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Top Genres</h3>
+        <div
+          className="p-6 rounded-[24px] shadow-sm flex flex-col gap-4 h-96"
+          style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+        >
+          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>Top Genres</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -207,24 +225,27 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
         </div>
 
         {/* Publication eras */}
-        <div className="bg-white dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 h-96">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Publication Eras</h3>
+        <div
+          className="p-6 rounded-[24px] shadow-sm flex flex-col gap-4 h-96"
+          style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+        >
+          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>Publication Eras</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={yearData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                  tick={{ fontSize: 11, fill: 'var(--on-surface-variant)', fontWeight: 600 }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  tick={{ fontSize: 11, fill: 'var(--on-surface-variant)' }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <Tooltip {...tooltipStyle} />
-                <Bar dataKey="count" fill="#6558f5" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="count" fill="#c46a4f" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -234,8 +255,11 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Format breakdown */}
-        <div className="bg-white dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 h-80">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Format Breakdown</h3>
+        <div
+          className="p-6 rounded-[24px] shadow-sm flex flex-col gap-4 h-80"
+          style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+        >
+          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>Format Breakdown</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -265,8 +289,11 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
         </div>
 
         {/* Status breakdown bar */}
-        <div className="bg-white dark:bg-slate-900/50 p-6 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 h-80">
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Reading Status</h3>
+        <div
+          className="p-6 rounded-[24px] shadow-sm flex flex-col gap-4 h-80"
+          style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
+        >
+          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>Reading Status</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -274,11 +301,11 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
                 margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
                 layout="vertical"
               >
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--on-surface-variant)' }} axisLine={false} tickLine={false} />
                 <YAxis
                   dataKey="name"
                   type="category"
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                  tick={{ fontSize: 11, fill: 'var(--on-surface-variant)', fontWeight: 600 }}
                   axisLine={false}
                   tickLine={false}
                   width={60}

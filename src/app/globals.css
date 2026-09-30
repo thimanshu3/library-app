@@ -112,11 +112,11 @@
   --font-jakarta: var(--font-jakarta), sans-serif;
 
   /* iOS 26 Liquid Glass shadows — warm-tinted, layered */
-  --shadow-sm: 0 1px 3px 0 rgba(30, 35, 48, 0.04), 0 1px 2px -1px rgba(30, 35, 48, 0.03);
-  --shadow-md: 0 4px 16px -4px rgba(30, 35, 48, 0.08), 0 2px 6px -2px rgba(30, 35, 48, 0.04);
-  --shadow-lg: 0 10px 32px -8px rgba(30, 35, 48, 0.10), 0 4px 12px -4px rgba(30, 35, 48, 0.06);
-  --shadow-xl: 0 20px 48px -12px rgba(30, 35, 48, 0.13), 0 8px 20px -6px rgba(30, 35, 48, 0.07);
-  --shadow-fab: 0 12px 36px -8px rgba(23, 27, 46, 0.52), 0 4px 12px -4px rgba(23, 27, 46, 0.28);
+  --shadow-sm: 0 1px 3px 0 rgba(80, 60, 40, 0.05), 0 1px 2px -1px rgba(80, 60, 40, 0.04);
+  --shadow-md: 0 4px 16px -4px rgba(80, 60, 40, 0.09), 0 2px 6px -2px rgba(80, 60, 40, 0.05);
+  --shadow-lg: 0 10px 32px -8px rgba(80, 60, 40, 0.11), 0 4px 12px -4px rgba(80, 60, 40, 0.06);
+  --shadow-xl: 0 20px 48px -12px rgba(80, 60, 40, 0.14), 0 8px 20px -6px rgba(80, 60, 40, 0.08);
+  --shadow-fab: 0 12px 36px -8px rgba(42, 32, 24, 0.52), 0 4px 12px -4px rgba(42, 32, 24, 0.28);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -170,21 +170,21 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(30, 35, 48, 0.12);
+  background: rgba(140, 120, 100, 0.18);
   border-radius: 99px;
   transition: background 0.2s;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 245, 235, 0.10);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(30, 35, 48, 0.28);
+  background: rgba(140, 120, 100, 0.34);
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 245, 235, 0.22);
 }
 
 .hide-scrollbar {
@@ -355,7 +355,7 @@ body {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(30, 35, 48, 0.42);
+  background: rgba(20, 15, 10, 0.48);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   z-index: 40;
@@ -399,7 +399,7 @@ body {
 }
 
 .gradient-text-warm {
-  background: linear-gradient(135deg, #1e2330 0%, #4a5268 100%);
+  background: linear-gradient(135deg, #1e1a15 0%, #5a4f44 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -448,16 +448,16 @@ body {
   gap: 6px;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(30, 35, 48, 0.08);
-  background: rgba(255, 253, 248, 0.85);
+  border: 1px solid rgba(140, 120, 100, 0.12);
+  background: rgba(253, 250, 245, 0.88);
   backdrop-filter: blur(12px);
   font-feature-settings: 'tnum';
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(30, 35, 48, 0.06);
+  box-shadow: 0 1px 3px rgba(80, 60, 40, 0.07);
 }
 .stat-chip:hover {
-  border-color: rgba(30, 35, 48, 0.14);
-  box-shadow: 0 2px 8px rgba(30, 35, 48, 0.08);
+  border-color: rgba(140, 120, 100, 0.22);
+  box-shadow: 0 2px 8px rgba(80, 60, 40, 0.10);
   transform: translateY(-1px);
 }
 
@@ -465,10 +465,10 @@ body {
    No-cover book placeholder gradient backgrounds
    ────────────────────────────────────────────────────────────────────────── */
 .cover-placeholder-unread {
-  background: linear-gradient(145deg, #e8e5db 0%, #d6d3c7 100%);
+  background: linear-gradient(145deg, #ede8de 0%, #d8d0c2 100%);
 }
 .cover-placeholder-reading {
-  background: linear-gradient(145deg, #ede9ff 0%, #ddd5ff 100%);
+  background: linear-gradient(145deg, #fae4df 0%, #f0c8bc 100%);
 }
 .cover-placeholder-read {
   background: linear-gradient(145deg, #d2f4e8 0%, #b8ebd6 100%);
@@ -497,20 +497,20 @@ body {
 .btn-pill-primary {
   background: var(--button-bg);
   color: var(--on-button);
-  box-shadow: 0 8px 24px -4px rgba(23, 27, 46, 0.42), 0 2px 8px -2px rgba(23, 27, 46, 0.2);
+  box-shadow: 0 8px 24px -4px rgba(42, 32, 24, 0.42), 0 2px 8px -2px rgba(42, 32, 24, 0.2);
 }
 .btn-pill-primary:hover {
-  box-shadow: 0 12px 32px -6px rgba(23, 27, 46, 0.52), 0 4px 12px -4px rgba(23, 27, 46, 0.24);
+  box-shadow: 0 12px 32px -6px rgba(42, 32, 24, 0.52), 0 4px 12px -4px rgba(42, 32, 24, 0.24);
   transform: translateY(-1px);
 }
 
 .btn-pill-ghost {
-  background: rgba(30, 35, 48, 0.06);
+  background: rgba(140, 120, 100, 0.07);
   color: var(--on-surface-variant);
-  border: 1px solid rgba(30, 35, 48, 0.1);
+  border: 1px solid rgba(140, 120, 100, 0.12);
 }
 .btn-pill-ghost:hover {
-  background: rgba(30, 35, 48, 0.1);
+  background: rgba(140, 120, 100, 0.12);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -519,7 +519,7 @@ body {
 .progress-track {
   height: 3px;
   border-radius: 999px;
-  background: rgba(30, 35, 48, 0.08);
+  background: rgba(140, 120, 100, 0.14);
   overflow: hidden;
 }
 .progress-fill {

@@ -39,7 +39,7 @@ export default function ReadingHeatmap({ books }: { books: Book[] }) {
   }
 
   const getColor = (count: number) => {
-    if (count === 0) return 'bg-slate-100 dark:bg-slate-800/50'
+    if (count === 0) return 'bg-[#e4ddd0] dark:bg-[#2e2922]/80'
     if (count === 1) return 'bg-emerald-200 dark:bg-emerald-900/60'
     if (count === 2) return 'bg-emerald-400 dark:bg-emerald-700/80'
     if (count === 3) return 'bg-emerald-500 dark:bg-emerald-500'
@@ -50,11 +50,11 @@ export default function ReadingHeatmap({ books }: { books: Book[] }) {
     <div className="flex flex-col gap-4">
       <div className="flex justify-between items-end">
         <div>
-          <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase mb-1">
+          <h3 className="text-[10px] font-black tracking-[0.2em] uppercase mb-1" style={{ color: 'var(--on-surface-variant)' }}>
             Activity Heatmap
           </h3>
-          <p className="text-2xl font-black text-slate-800 dark:text-white">
-            {readDates.length} <span className="text-sm font-bold text-slate-400">reading days</span>
+          <p className="text-2xl font-black" style={{ color: 'var(--on-surface)' }}>
+            {readDates.length} <span className="text-sm font-bold" style={{ color: 'var(--on-surface-variant)' }}>reading days</span>
           </p>
         </div>
       </div>

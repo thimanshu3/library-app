@@ -1,11 +1,20 @@
 'use client'
 
+import { useState } from 'react'
 import { Book } from '../types'
+import { clayFill, palette, pressed, raised } from '../clay'
 
 const formatDate = (d?: string) => {
   if (!d) return null
-  try { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }
-  catch { return d }
+  try {
+    return new Date(d).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  } catch {
+    return d
+  }
 }
 
 const getDaysOut = (loanDate?: string): number | null => {
@@ -15,54 +24,119 @@ const getDaysOut = (loanDate?: string): number | null => {
 }
 
 export default function LoanTracker({
-  books, onEdit
+  books,
+  onEdit
 }: {
   books: Book[]
   onEdit: (b: Book) => void
 }) {
-  const loanedBooks = books.filter(b => b.loans && b.loans.some(l => !l.dateReturned))
+  const [isDark] = useState(() =>
+    typeof document !== 'undefined' &&
+    document.documentElement.classList.contains('dark')
+  )
+  const P = palette(isDark)
+  const R = (d = 8, b = 22) => raised('140,120,100', isDark, d, b)
+  const Pr = (d = 4, b = 10) => pressed('140,120,100', isDark, d, b)
+
+  const loanedBooks = books.filter(
+    b => b.loans && b.loans.some(l => !l.dateReturned)
+  )
 
   if (loanedBooks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-4 mt-20 animate-fade-in">
-        <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-          <svg className="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      <div className="flex flex-col items-center justify-center h-64 gap-5 mt-20 animate-fade-in">
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center"
+          style={{ background: P.well, boxShadow: Pr(4, 12) }}
+        >
+          <svg
+            className="w-9 h-9"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            style={{ color: P.faint }}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            />
           </svg>
         </div>
         <div className="text-center">
-          <p className="font-bold text-slate-600 dark:text-slate-400">No active loans</p>
-          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Books you lend out will appear here.</p>
+          <p className="font-bold text-sm" style={{ color: P.title }}>
+            No active loans
+          </p>
+          <p className="text-sm mt-1" style={{ color: P.faint }}>
+            Books you lend out will appear here.
+          </p>
         </div>
       </div>
     )
   }
 
+  const overdueCount = loanedBooks.filter(book => {
+    const l = book.loans.find(l => !l.dateReturned)
+    if (!l) return false
+    if (l.expectedReturnDate) return Date.now() > new Date(l.expectedReturnDate).getTime()
+    const d = getDaysOut(l.dateLent)
+    return d !== null && d > 30
+  }).length
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      {/* Header card */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-900/50 p-6 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-sm">
+      {/* Header */}
+      <div
+        className="flex items-center justify-between p-5 sm:p-6 rounded-[28px]"
+        style={{ background: P.panel, boxShadow: R(6, 18) }}
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Active Loans</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {loanedBooks.length} book{loanedBooks.length !== 1 ? 's' : ''} currently out on loan
+          <h2
+            className="text-xl font-bold tracking-tight"
+            style={{ color: P.title }}
+          >
+            Active Loans
+          </h2>
+          <p className="text-sm mt-0.5" style={{ color: P.body }}>
+            {loanedBooks.length} book{loanedBooks.length !== 1 ? 's' : ''}{' '}
+            currently out on loan
+            {overdueCount > 0 && (
+              <span className="ml-2 text-[11px] font-bold text-[#ba1a1a] dark:text-[#f87171]">
+                · {overdueCount} overdue
+              </span>
+            )}
           </p>
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+          style={clayFill('196,106,79', '#e38a71', '#c46a4f', 3)}
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            />
           </svg>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {loanedBooks.map((book, i) => {
           const activeLoan = book.loans.find(l => !l.dateReturned)
           if (!activeLoan) return null
-          
+
           const daysOut = getDaysOut(activeLoan.dateLent)
           const loanDateStr = formatDate(activeLoan.dateLent)
-          
+
           let isOverdue = false
           let dueStr = ''
           if (activeLoan.expectedReturnDate) {
@@ -71,67 +145,102 @@ export default function LoanTracker({
               isOverdue = true
               dueStr = 'Past due'
             } else {
-              const diffDays = Math.ceil((dueDate - Date.now()) / (1000 * 60 * 60 * 24))
+              const diffDays = Math.ceil(
+                (dueDate - Date.now()) / (1000 * 60 * 60 * 24)
+              )
               dueStr = `Due in ${diffDays}d`
             }
           } else {
-            // Fallback overdue logic if no due date set
             isOverdue = daysOut !== null && daysOut > 30
           }
+
+          const statusRgb = isOverdue ? '186,26,26' : '196,106,79'
+          const statusFrom = isOverdue ? '#f87171' : '#e38a71'
+          const statusTo = isOverdue ? '#ba1a1a' : '#c46a4f'
 
           return (
             <div
               key={book.id}
               onClick={() => onEdit(book)}
-              className={`
-                bg-white dark:bg-slate-900/30 border rounded-[24px] p-5 shadow-sm 
-                flex flex-col gap-4 backdrop-blur-sm cursor-pointer group
-                transition-all duration-300 hover:-translate-y-1 animate-slide-up
-                ${isOverdue
-                  ? 'border-red-200 dark:border-red-900/50 hover:shadow-red-500/10 hover:border-red-400/50'
-                  : 'border-slate-200 dark:border-slate-800 hover:border-amber-400/50 hover:shadow-amber-500/10'
-                }
-              `}
-              style={{ animationDelay: `${i * 50}ms` }}
+              className="flex flex-col gap-4 p-4 rounded-[24px] cursor-pointer transition-all duration-300 hover:-translate-y-1 active:scale-[0.99] animate-slide-up group"
+              style={{
+                background: P.panel,
+                boxShadow: R(6, 16),
+                animationDelay: `${i * 50}ms`
+              }}
             >
-              <div className="flex gap-4">
-                <div className="w-14 h-20 shrink-0 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden shadow-md border border-slate-200 dark:border-slate-700">
+              {/* Book info */}
+              <div className="flex gap-3">
+                <div
+                  className="w-12 h-[68px] shrink-0 rounded-xl overflow-hidden"
+                  style={{ boxShadow: '3px 5px 12px rgba(0,0,0,.25)' }}
+                >
                   {book.coverFile || book.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={book.coverFile || book.photoUrl} alt={book.title} className="w-full h-full object-cover" />
+                    <img
+                      src={book.coverFile || book.photoUrl}
+                      alt={book.title}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400 font-bold">
+                    <div
+                      className="w-full h-full flex items-center justify-center text-[9px] font-bold"
+                      style={{ background: P.well, color: P.faint }}
+                    >
                       #{String(book.id).replace('c_', '')}
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                  <h3 className="font-bold text-slate-900 dark:text-white leading-tight line-clamp-2 text-sm">{book.title}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-1">{book.author}</p>
+                <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                  <h3
+                    className="font-bold leading-tight line-clamp-2 text-sm"
+                    style={{ color: P.title }}
+                  >
+                    {book.title}
+                  </h3>
+                  <p
+                    className="text-[11px] line-clamp-1"
+                    style={{ color: P.faint }}
+                  >
+                    {book.author}
+                  </p>
                 </div>
               </div>
 
-              {/* Loan details */}
-              <div className={`p-3.5 rounded-2xl flex flex-col gap-2 transition-colors ${
-                isOverdue
-                  ? 'bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30'
-                  : 'bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/30'
-              }`}>
+              {/* Loan detail panel */}
+              <div
+                className="p-3.5 rounded-2xl flex flex-col gap-1.5"
+                style={{
+                  background: isDark
+                    ? `rgba(${statusRgb},.12)`
+                    : `rgba(${statusRgb},.07)`,
+                  border: `1px solid rgba(${statusRgb},${isDark ? '.25' : '.18'})`
+                }}
+              >
                 <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isOverdue ? 'text-red-500' : 'text-amber-600 dark:text-amber-500'}`}>
-                    {isOverdue ? '⚠ Overdue' : 'Loaned To'}
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-widest"
+                    style={{ color: isOverdue ? statusFrom : P.accent }}
+                  >
+                    {isOverdue ? '⚠ Overdue' : 'Loaned to'}
                   </span>
                   {(daysOut !== null || dueStr) && (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isOverdue ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'}`}>
-                      {dueStr || `${daysOut}d`}
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={clayFill(statusRgb, statusFrom, statusTo, 2)}
+                    >
+                      {dueStr || `${daysOut}d out`}
                     </span>
                   )}
                 </div>
-                <span className={`text-base font-bold ${isOverdue ? 'text-red-700 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: P.title }}
+                >
                   {activeLoan.borrowerName}
                 </span>
                 {loanDateStr && (
-                  <span className={`text-xs ${isOverdue ? 'text-red-500 dark:text-red-400' : 'text-amber-600 dark:text-amber-500'}`}>
+                  <span className="text-[11px]" style={{ color: P.faint }}>
                     Since {loanDateStr}
                   </span>
                 )}
