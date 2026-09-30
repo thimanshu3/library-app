@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 // Shadow tint for neutral (non-status) surfaces
-export const NEUTRAL_RGB = '112,104,168'
+export const NEUTRAL_RGB = '140,120,100'
 
 // raised: soft puffy object  |  pressed: carved-in well
 export const raised = (rgb: string, dark: boolean, d = 10, b = 26) => {
@@ -22,12 +22,12 @@ export const chipShadow = (dark: boolean) =>
     : '0 3px 8px rgba(30,35,55,.16), inset 1px 1px 2px rgba(255,255,255,.9), inset -1px -1px 2px rgba(30,35,55,.08)'
 
 export const palette = (dark: boolean) => ({
-  canvas: dark ? '#141726' : '#e7e3f4',
-  panel: dark ? '#1e2235' : '#f3f0fb',
-  well: dark ? 'rgba(0,0,0,.24)' : 'rgba(112,104,168,.09)',
-  title: dark ? '#f5f6fb' : '#1c2133',
-  body: dark ? 'rgba(255,255,255,.64)' : '#59627a',
-  faint: dark ? 'rgba(255,255,255,.4)' : '#8b93a8',
+  canvas: dark ? '#141410' : '#f5f0e8',
+  panel: dark ? '#1e1b16' : '#faf7f2',
+  well: dark ? 'rgba(0,0,0,.28)' : 'rgba(140,120,100,.10)',
+  title: dark ? '#f5f1eb' : '#1e1a15',
+  body: dark ? 'rgba(255,245,235,.64)' : '#5a4f44',
+  faint: dark ? 'rgba(255,245,235,.4)' : '#9e8e7e',
   accent: dark ? '#e38a71' : '#c46a4f'
 })
 
@@ -47,7 +47,7 @@ export const statusTheme: Record<
   string,
   { rgb: string; from: string; to: string }
 > = {
-  All: { rgb: '59,66,102', from: '#5b6491', to: '#343b63' },
+  All: { rgb: '100,90,80', from: '#8a7d6e', to: '#5c504a' },
   Unread: { rgb: '100,116,139', from: '#94a3b8', to: '#64748b' },
   Reading: { rgb: '196,106,79', from: '#e38a71', to: '#c46a4f' },
   Read: { rgb: '16,185,129', from: '#4fe0b0', to: '#10b981' },

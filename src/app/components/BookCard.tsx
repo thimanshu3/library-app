@@ -250,7 +250,7 @@ export default function BookCard({
         body: 'rgba(255,255,255,.62)',
         faint: 'rgba(255,255,255,.4)'
       }
-    : { title: '#1c2133', body: '#59627a', faint: '#8b93a8' }
+    : { title: '#1e1a15', body: '#5a4f44', faint: '#9e8e7e' }
   const accentText = dark ? a.light : a.main
   const wellBg = dark ? 'rgba(0,0,0,.22)' : `rgba(${a.rgb},.09)`
   const tileBg = dark ? 'rgba(0,0,0,.18)' : `rgba(${a.rgb},.06)`

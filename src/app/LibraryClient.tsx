@@ -1249,7 +1249,7 @@ export default function LibraryClient({
             style={{
               background: isDark
                 ? 'rgba(196,106,79,.18)'
-                : 'rgba(167,139,250,.35)'
+                : 'rgba(196,106,79,.20)'
             }}
           />
           <div

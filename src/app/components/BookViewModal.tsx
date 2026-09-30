@@ -496,7 +496,7 @@ export default function BookViewModal({
               </Chip>
             ))}
             {tagList.map(t => (
-              <Chip key={`t-${t}`} dark={isDark} rgb="112,104,168" fg={P.body}>
+              <Chip key={`t-${t}`} dark={isDark} rgb="140,120,100" fg={P.body}>
                 #{t}
               </Chip>
             ))}
@@ -1113,7 +1113,7 @@ export default function BookViewModal({
               <RoundButton dark={isDark} onClick={onClose} label="Back">
                 <Icon d={paths.back} stroke={2.5} />
               </RoundButton>
-              <Chip dark={isDark} rgb="112,104,168" fg={P.body}>
+              <Chip dark={isDark} rgb="140,120,100" fg={P.body}>
                 Book #{bookNo}
               </Chip>
               {onEdit ? (
@@ -1214,7 +1214,7 @@ export default function BookViewModal({
           >
             <div className="shrink-0 px-7 pt-6 pb-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <Chip dark={isDark} rgb="112,104,168" fg={P.body}>
+                <Chip dark={isDark} rgb="140,120,100" fg={P.body}>
                   Book #{bookNo}
                 </Chip>
                 <h3
@@ -1275,12 +1275,12 @@ export default function BookViewModal({
                 </Chip>
               )}
               {book.format && book.format !== 'None' && (
-                <Chip dark={isDark} rgb="112,104,168" fg={P.body}>
+                <Chip dark={isDark} rgb="140,120,100" fg={P.body}>
                   {book.format}
                 </Chip>
               )}
               {book.isbn && (
-                <Chip dark={isDark} rgb="112,104,168" fg={P.body}>
+                <Chip dark={isDark} rgb="140,120,100" fg={P.body}>
                   ISBN {book.isbn}
                 </Chip>
               )}

@@ -308,7 +308,7 @@ export default function AddBookModal({
           className="p-6 flex items-center justify-between shrink-0"
           style={{
             background: P.canvas,
-            borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(112,104,168,0.12)'}`
+            borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(140,120,100,0.12)'}`
           }}
         >
           <div>
@@ -352,7 +352,7 @@ export default function AddBookModal({
           className="p-5 shrink-0"
           style={{
             background: P.panel,
-            borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(112,104,168,0.10)'}`
+            borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(140,120,100,0.10)'}`
           }}
         >
           <form onSubmit={handleSearch} className="flex gap-3">
@@ -410,7 +410,7 @@ export default function AddBookModal({
               background: P.well,
               color: P.body,
               boxShadow: Pr(3, 8),
-              border: `1.5px dashed ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(112,104,168,0.25)'}`
+              border: `1.5px dashed ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(140,120,100,0.25)'}`
             }}
           >
             ✏️ Add Book Manually

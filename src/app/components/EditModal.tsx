@@ -58,7 +58,7 @@ function QuoteAdder({
       style={{
         background: P.well,
         boxShadow: Pr(3, 8),
-        border: `1.5px dashed ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(112,104,168,0.2)'}`
+        border: `1.5px dashed ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(140,120,100,0.2)'}`
       }}
     >
       <textarea
@@ -215,7 +215,7 @@ export default function EditModal({
             style={{
               background: isDark
                 ? 'rgba(255,255,255,0.15)'
-                : 'rgba(112,104,168,0.25)'
+                : 'rgba(140,120,100,0.25)'
             }}
           />
         </div>
@@ -229,7 +229,7 @@ export default function EditModal({
             background: P.canvas,
             borderColor: isDark
               ? 'rgba(255,255,255,0.06)'
-              : 'rgba(112,104,168,0.12)'
+              : 'rgba(140,120,100,0.12)'
           }}
         >
           {/* Cover */}
@@ -296,7 +296,7 @@ export default function EditModal({
                 key={label}
                 className="flex justify-between items-center py-2.5"
                 style={{
-                  borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(112,104,168,0.1)'}`
+                  borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(140,120,100,0.1)'}`
                 }}
               >
                 <span
@@ -324,7 +324,7 @@ export default function EditModal({
           <div
             className="flex shrink-0"
             style={{
-              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(112,104,168,0.12)'}`
+              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(140,120,100,0.12)'}`
             }}
           >
             {tabs.map(tab => (
@@ -355,7 +355,7 @@ export default function EditModal({
               className="px-5 transition-all hover:opacity-70 active:scale-90"
               style={{
                 color: P.faint,
-                borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(112,104,168,0.12)'}`
+                borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(140,120,100,0.12)'}`
               }}
               aria-label="Close"
             >
@@ -952,7 +952,7 @@ export default function EditModal({
           <div
             className="p-5 flex justify-end gap-3 shrink-0"
             style={{
-              borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(112,104,168,0.12)'}`,
+              borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(140,120,100,0.12)'}`,
               background: P.canvas
             }}
           >
