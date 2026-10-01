@@ -370,7 +370,7 @@ export default function BookCard({
       style={cardStyle}
       className={`
         relative group flex flex-col rounded-[30px] sm:rounded-[36px] p-2 sm:p-3
-        transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer select-none
+        transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer select-none content-visibility-auto
         [box-shadow:var(--clay)]
         ${
           isSelected

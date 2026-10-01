@@ -22,8 +22,8 @@ export const chipShadow = (dark: boolean) =>
     : '0 3px 8px rgba(30,35,55,.16), inset 1px 1px 2px rgba(255,255,255,.9), inset -1px -1px 2px rgba(30,35,55,.08)'
 
 export const palette = (dark: boolean) => ({
-  canvas: dark ? '#141410' : '#f5f0e8',
-  panel: dark ? '#1e1b16' : '#faf7f2',
+  canvas: 'transparent',
+  panel: dark ? 'rgba(30, 27, 22, 0.65)' : 'rgba(250, 247, 242, 0.75)',
   well: dark ? 'rgba(0,0,0,.28)' : 'rgba(140,120,100,.10)',
   title: dark ? '#f5f1eb' : '#1e1a15',
   body: dark ? 'rgba(255,245,235,.64)' : '#5a4f44',

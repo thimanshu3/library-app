@@ -34,6 +34,7 @@ const PdfReaderModal = dynamic(() => import('./components/PdfReaderModal'), {
   ssr: false
 })
 
+import BookListCard from './components/BookList'
 import {
   Book,
   BookCopy,
@@ -1499,7 +1500,7 @@ export default function LibraryClient({
           style={{ background: P.panel, boxShadow: R(10, 28) }}
         >
           {/* ─ Header ─ */}
-          <header className="shrink-0 px-5 sm:px-6 lg:px-7 pt-5 pb-4 z-10 flex items-center justify-between gap-4">
+          <header className="shrink-0 px-5 sm:px-6 lg:px-7 pt-5 pb-4 z-50 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="lg:hidden">
                 <ClayButton
@@ -1780,85 +1781,13 @@ export default function LibraryClient({
               <div className="flex flex-col gap-4">
                 {books.length === 0 && noResultsState}
                 {books.map((book, i) => (
-                  <div
+                  <BookListCard
                     key={book.id}
-                    onClick={() => setViewingBook(book)}
-                    className="group flex items-center gap-4 rounded-[26px] p-3 sm:p-3.5 cursor-pointer transition-all duration-300 hover:-translate-y-1 active:scale-[0.99] animate-slide-up"
-                    style={{
-                      background: P.panel,
-                      boxShadow: R(6, 16),
-                      animationDelay: `${i * 15}ms`
-                    }}
-                  >
-                    <div
-                      className="w-11 h-16 shrink-0 rounded-xl overflow-hidden flex items-center justify-center"
-                      style={{
-                        background: P.well,
-                        boxShadow:
-                          book.coverFile || book.photoUrl
-                            ? '3px 5px 12px rgba(0,0,0,.28)'
-                            : V(3, 6)
-                      }}
-                    >
-                      {book.coverFile || book.photoUrl ? (
-                        <img
-                          src={book.coverFile || book.photoUrl}
-                          alt={book.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span
-                          className="text-[9px] font-black"
-                          style={{ color: P.faint }}
-                        >
-                          #{String(book.id).replace('c_', '')}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className="font-syne font-black truncate text-sm sm:text-[15px]"
-                        style={{ color: P.title }}
-                      >
-                        {book.title}
-                      </h3>
-                      <p
-                        className="text-[12px] font-semibold truncate mt-0.5"
-                        style={{ color: P.body }}
-                      >
-                        {book.author}
-                      </p>
-                    </div>
-                    {(book.rating || 0) > 0 && (
-                      <span className="hidden md:block text-[13px] text-amber-400 tracking-wide">
-                        {'★'.repeat(book.rating || 0)}
-                      </span>
-                    )}
-                    <div className="hidden sm:flex flex-col items-end gap-1.5">
-                      <span
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                        style={chipStyle('196,106,79')}
-                      >
-                        {genreName[book.genre] || book.genre}
-                      </span>
-                      <StatusChip status={book.status} dark={isDark} />
-                    </div>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        setEditingBook(book)
-                      }}
-                      aria-label="Edit book"
-                      className="sm:opacity-0 sm:group-hover:opacity-100 w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-90"
-                      style={{
-                        background: P.panel,
-                        color: P.accent,
-                        boxShadow: R(3, 8)
-                      }}
-                    >
-                      <Icon d={paths.edit} className="w-4 h-4" />
-                    </button>
-                  </div>
+                    book={book}
+                    onEdit={() => setEditingBook(book)}
+                    onView={() => setViewingBook(book)}
+                    isDark={isDark}
+                  />
                 ))}
               </div>
             )}
