@@ -1,23 +1,61 @@
+import { Suspense } from 'react';
 import LibraryClient from './LibraryClient';
-import prisma from '@/lib/prisma';
-import { BookWork, BookCopy } from './types';
+import { fetchFilteredBooksAction } from './actions';
 
-export const dynamic = 'force-dynamic';
+async function LibraryContent({
+  searchParams
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams;
 
-export default async function Page() {
-  const allCopies = await prisma.copy.findMany({ include: { work: true } });
-  allCopies.sort((a, b) => {
-    const numA = parseInt(a.workId.replace(/\D/g, '')) || 0;
-    const numB = parseInt(b.workId.replace(/\D/g, '')) || 0;
-    return numA - numB;
+  const search = typeof params.search === 'string' ? params.search : undefined;
+  const statusFilter = typeof params.statusFilter === 'string' ? params.statusFilter : undefined;
+  const volumeFilter = typeof params.volumeFilter === 'string' ? params.volumeFilter : undefined;
+  const genreFilter = typeof params.genreFilter === 'string' ? params.genreFilter : undefined;
+  const authorFilter = typeof params.authorFilter === 'string' ? params.authorFilter : undefined;
+  const yearFilter = typeof params.yearFilter === 'string' ? params.yearFilter : undefined;
+  const formatFilter = typeof params.formatFilter === 'string' ? params.formatFilter : undefined;
+  const purchasedFilter = typeof params.purchasedFilter === 'string' ? params.purchasedFilter : undefined;
+  const shelfFilter = typeof params.shelfFilter === 'string' ? params.shelfFilter : undefined;
+  const sortBy = typeof params.sortBy === 'string' ? params.sortBy : undefined;
+  const skip = typeof params.skip === 'string' ? parseInt(params.skip, 10) : 0;
+  
+  const { books = [], totalCount = 0 } = await fetchFilteredBooksAction({
+    search,
+    statusFilter,
+    volumeFilter,
+    genreFilter,
+    authorFilter,
+    yearFilter,
+    formatFilter,
+    purchasedFilter,
+    shelfFilter,
+    sortBy,
+    skip,
+    take: 20
   });
-  const initialCopies = allCopies.slice(0, 20);
 
-  // We actually don't need to pass all `works` anymore since `include: { work: true }` passes the work inside copy!
-  // But LibraryClient expects initialWorks and initialCopies.
-  // We can pass `initialCopies` mapped with `workId` and extract `initialWorks`.
-  const initialWorks = initialCopies.map(c => c.work);
-  const totalCount = await prisma.copy.count();
+  return (
+    <LibraryClient 
+      initialBooks={books} 
+      initialTotalCount={totalCount} 
+    />
+  );
+}
 
-  return <LibraryClient initialWorks={initialWorks as unknown as BookWork[]} initialCopies={initialCopies as unknown as BookCopy[]} initialTotalCount={totalCount} />;
+export default function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen bg-slate-900 text-slate-400 font-medium">
+        Loading Library...
+      </div>
+    }>
+      <LibraryContent searchParams={searchParams} />
+    </Suspense>
+  );
 }

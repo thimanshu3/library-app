@@ -23,6 +23,8 @@ export const metadata: Metadata = {
   }
 }
 
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
+
 export default function RootLayout({
   children
 }: {
@@ -34,7 +36,7 @@ export default function RootLayout({
       className={`${syne.variable} ${plusJakarta.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-jakarta bg-background text-foreground selection:bg-accent/30 selection:text-accent">
-        {children}
+        <NuqsAdapter>{children}</NuqsAdapter>
       </body>
     </html>
   )

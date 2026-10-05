@@ -18,7 +18,8 @@ export async function fetchFilteredBooksAction(params: {
   sortBy?: string
   skip?: number
   take?: number
-}) {
+  viewMode?: string
+}): Promise<{ books?: JoinedBook[]; totalCount?: number; hasMore?: boolean; error?: string }> {
   const {
     search,
     statusFilter,
@@ -31,7 +32,8 @@ export async function fetchFilteredBooksAction(params: {
     shelfFilter,
     sortBy = 'id',
     skip = 0,
-    take = 20
+    take = 20,
+    viewMode
   } = params
 
   try {
@@ -103,83 +105,104 @@ export async function fetchFilteredBooksAction(params: {
     }
 
     // Since we need to join Copy and Work
-    let copies = await prisma.copy.findMany({
-      where: whereClause,
-      include: {
-        work: true
-      },
-      orderBy,
-      skip,
-      take
-    })
+    let copies: any[] = []
+    // If we have a grouped viewMode, we do grouping pagination in memory
+    const groupedModes = ['authors', 'collections', 'volumes', 'alphabetic']
+    const isGrouped = viewMode && groupedModes.includes(viewMode)
 
-    // Handle Year filtering in memory if required since it's stored as String and complex logic was used:
-    if (yearFilter && yearFilter !== 'All') {
-      // Just refetch all matching other filters and filter in memory if yearFilter is active?
-      // The user requested "NO ui side filter, everything compute on server DB".
-      // Doing it in server memory is technically server-side, but ideally DB side.
-      // For a small dataset (350 items), server memory is instantaneous.
+    let hasMore = false
+
+    if (isGrouped || (yearFilter && yearFilter !== 'All') || sortBy === 'id') {
       const allCopies = await prisma.copy.findMany({
         where: whereClause,
-        include: { work: true },
-        orderBy
+        include: { work: true }
       })
 
       let filteredAll = allCopies
-      if (yearFilter === 'Pre-1900s')
-        filteredAll = filteredAll.filter(
-          c => parseInt(c.work.launchYear || '2000') < 1900
-        )
-      else if (yearFilter === '1900-1950')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 1900 && y < 1950
-        })
-      else if (yearFilter === '1950-2000')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 1950 && y < 2000
-        })
-      else if (yearFilter === '2000s')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 2000 && y < 2010
-        })
-      else if (yearFilter === '2010s')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 2010 && y < 2020
-        })
-      else if (yearFilter === '2020s')
-        filteredAll = filteredAll.filter(
-          c => parseInt(c.work.launchYear || '0') >= 2020
-        )
 
-      // If sortBy === 'id', do the numeric sort the user wanted here too to fix the sorting issue
+      // Apply Year Filter
+      if (yearFilter && yearFilter !== 'All') {
+        if (yearFilter === 'Pre-1900s')
+          filteredAll = filteredAll.filter(
+            c => parseInt(c.work.launchYear || '2000') < 1900
+          )
+        else if (yearFilter === '1900-1950')
+          filteredAll = filteredAll.filter(c => {
+            const y = parseInt(c.work.launchYear || '0')
+            return y >= 1900 && y < 1950
+          })
+        else if (yearFilter === '1950-2000')
+          filteredAll = filteredAll.filter(c => {
+            const y = parseInt(c.work.launchYear || '0')
+            return y >= 1950 && y < 2000
+          })
+        else if (yearFilter === '2000s')
+          filteredAll = filteredAll.filter(c => {
+            const y = parseInt(c.work.launchYear || '0')
+            return y >= 2000 && y < 2010
+          })
+        else if (yearFilter === '2010s')
+          filteredAll = filteredAll.filter(c => {
+            const y = parseInt(c.work.launchYear || '0')
+            return y >= 2010 && y < 2020
+          })
+        else if (yearFilter === '2020s')
+          filteredAll = filteredAll.filter(
+            c => parseInt(c.work.launchYear || '0') >= 2020
+          )
+      }
+
+      // Apply ID Sort
       if (sortBy === 'id') {
         filteredAll.sort((a, b) => {
           const numA = parseInt(a.workId.replace(/\D/g, '')) || 0
           const numB = parseInt(b.workId.replace(/\D/g, '')) || 0
           return numA - numB
         })
+      } else if (sortBy === 'title') {
+        filteredAll.sort((a, b) => (a.work.title || '').localeCompare(b.work.title || ''))
+      } else if (sortBy === 'author') {
+        filteredAll.sort((a, b) => (a.work.author || '').localeCompare(b.work.author || ''))
+      } else if (sortBy === 'year') {
+        filteredAll.sort((a, b) => parseInt(b.work.launchYear || '0') - parseInt(a.work.launchYear || '0'))
       }
 
-      // Paginate
-      copies = filteredAll.slice(skip, skip + take)
-    } else {
-      // If no year filter, we still need to fix the ID sort!
-      if (sortBy === 'id') {
-        const allCopies = await prisma.copy.findMany({
-          where: whereClause,
-          include: { work: true }
-        })
-        allCopies.sort((a, b) => {
-          const numA = parseInt(a.workId.replace(/\D/g, '')) || 0
-          const numB = parseInt(b.workId.replace(/\D/g, '')) || 0
-          return numA - numB
-        })
-        copies = allCopies.slice(skip, skip + take)
+      // Handle Grouped Pagination
+      if (isGrouped) {
+        const getGroupKey = (c: any) => {
+          if (viewMode === 'authors') return c.work.author || ''
+          if (viewMode === 'collections') return c.work.genre || ''
+          if (viewMode === 'volumes') return c.work.volume || 'Uncategorized'
+          if (viewMode === 'alphabetic') {
+            const t = c.work.title || ''
+            return /[A-Z]/i.test(t.charAt(0)) ? t.charAt(0).toUpperCase() : '#'
+          }
+          return ''
+        }
+
+        const groups = Array.from(new Set(filteredAll.map(getGroupKey)))
+        groups.sort() // Alphabetical sort for groups
+
+        const paginatedGroups = new Set(groups.slice(skip, skip + take))
+        hasMore = skip + take < groups.length
+
+        copies = filteredAll.filter(c => paginatedGroups.has(getGroupKey(c)))
+      } else {
+        // Normal Pagination
+        hasMore = skip + take < filteredAll.length
+        copies = filteredAll.slice(skip, skip + take)
       }
+    } else {
+      // Normal database-level query for non-grouped, non-ID-sorted, non-year-filtered requests
+      copies = await prisma.copy.findMany({
+        where: whereClause,
+        include: { work: true },
+        orderBy,
+        skip,
+        take: take + 1 // Fetch 1 extra to check hasMore
+      })
+      hasMore = copies.length > take
+      if (hasMore) copies.pop()
     }
 
     // Map to JoinedBook format
@@ -292,10 +315,10 @@ export async function fetchFilteredBooksAction(params: {
       totalCount = await prisma.copy.count({ where: whereClause })
     }
 
-    return { books: joinedBooks, totalCount }
+    return { books: joinedBooks, totalCount, hasMore, error: undefined }
   } catch (error) {
     console.error('Failed to fetch filtered books:', error)
-    return { error: 'Failed to fetch data' }
+    return { books: undefined, totalCount: undefined, hasMore: undefined, error: 'Failed to fetch data' }
   }
 }
 

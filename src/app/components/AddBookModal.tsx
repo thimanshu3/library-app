@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Book } from '../types'
+import BarcodeScanner from './BarcodeScanner'
 import {
   NEUTRAL_RGB,
   palette,
@@ -35,6 +36,7 @@ export default function AddBookModal({
   const [results, setResults] = useState<Partial<Book>[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [isDark, setIsDark] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
 
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -222,7 +224,36 @@ export default function AddBookModal({
         }
       }
 
-      setResults(fetchedBooks)
+      // Deduplicate results: strictly match by ISBN first, falling back to title+author only when ISBN is missing
+      const uniqueBooks: Partial<Book>[] = []
+      const seenIsbns = new Set<string>()
+      const seenTitleAuthors = new Set<string>()
+
+      for (const book of fetchedBooks) {
+        let isDuplicate = false
+        const titleAuthorKey = `${book.title?.toLowerCase()}|${book.author?.toLowerCase()}`
+
+        if (book.isbn && book.isbn.length >= 10) {
+          if (seenIsbns.has(book.isbn)) {
+            isDuplicate = true
+          } else {
+            seenIsbns.add(book.isbn)
+            seenTitleAuthors.add(titleAuthorKey)
+          }
+        } else {
+          if (seenTitleAuthors.has(titleAuthorKey)) {
+            isDuplicate = true
+          } else {
+            seenTitleAuthors.add(titleAuthorKey)
+          }
+        }
+
+        if (!isDuplicate) {
+          uniqueBooks.push(book)
+        }
+      }
+
+      setResults(uniqueBooks)
     } catch (err) {
       console.error(err)
     } finally {
@@ -381,6 +412,15 @@ export default function AddBookModal({
                 style={{ color: P.title }}
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setIsScanning(true)}
+              className="px-4 rounded-2xl transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center"
+              style={{ background: P.well, boxShadow: Pr(4, 10), color: P.body }}
+              title="Scan Barcode"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+            </button>
             <button
               type="submit"
               disabled={loading || !query.trim()}
@@ -542,6 +582,15 @@ export default function AddBookModal({
           )}
         </div>
       </div>
+      {isScanning && (
+        <BarcodeScanner 
+          onClose={() => setIsScanning(false)}
+          onScan={(result) => {
+            setQuery(result);
+            setIsScanning(false);
+          }}
+        />
+      )}
     </div>
   )
 }

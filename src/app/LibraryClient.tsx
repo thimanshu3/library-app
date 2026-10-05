@@ -1,4 +1,5 @@
 'use client'
+import { useQueryStates, parseAsString, parseAsInteger } from 'nuqs';
 /* eslint-disable @next/next/no-img-element */
 
 import type { CSSProperties, ReactNode } from 'react'
@@ -33,6 +34,9 @@ import ToastProvider, { toast } from './components/Toast'
 const PdfReaderModal = dynamic(() => import('./components/PdfReaderModal'), {
   ssr: false
 })
+const EpubReaderModal = dynamic(() => import('./components/EpubReaderModal'), {
+  ssr: false
+})
 
 import BookListCard from './components/BookList'
 import {
@@ -47,420 +51,56 @@ import {
 
 // ─── Types & static config ────────────────────────────────────────────────────
 
-type ViewMode =
-  | 'grid'
-  | 'alphabetic'
-  | 'authors'
-  | 'collections'
-  | 'volumes'
-  | 'list'
-  | 'analytics'
-  | 'loans'
-  | 'wishlist'
-
-const viewModes: { id: ViewMode; label: string }[] = [
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'loans', label: 'Loans' },
-  { id: 'wishlist', label: 'Wishlist' },
-  { id: 'grid', label: 'Grid' },
-  { id: 'alphabetic', label: 'A–Z' },
-  { id: 'authors', label: 'Authors' },
-  { id: 'collections', label: 'Collections' },
-  { id: 'volumes', label: 'Volumes' },
-  { id: 'list', label: 'List' }
-]
-
-type Option = [value: string, label: string]
-
-const sortOptions: Option[] = [
-  ['id', 'Reading order (#1–#300)'],
-  ['title', 'Title A–Z'],
-  ['year', 'Launch year (oldest first)'],
-  ['price', 'Investment (highest first)']
-]
-
-const genreOptions: Option[] = [
-  ['All', 'All collections'],
-  ['MIND', 'Mindset / Resilience'],
-  ['PHIL', 'Philosophy'],
-  ['PROD', 'Focus / Productivity'],
-  ['PSY', 'Psychology'],
-  ['FIN', 'Money'],
-  ['POWER', 'Influence / Power'],
-  ['THINK', 'Decision-Making'],
-  ['STARTUP', 'Business'],
-  ['HIST', 'History'],
-  ['BIO', 'Biography / Memoir'],
-  ['WAR', 'Military / Survival'],
-  ['FIC', 'Fiction'],
-  ['TECH', 'Tech / Future'],
-  ['SCI', 'Science / Space'],
-  ['SPIRIT', 'Purpose / Spirituality'],
-  ['COMM', 'Communication']
-]
-
-const genreName: Record<string, string> = Object.fromEntries(
-  genreOptions.filter(([v]) => v !== 'All')
-)
-
-const volumeOptions: Option[] = [
-  ['All', 'All volumes'],
-  ...Array.from(
-    { length: 15 },
-    (_, i): Option => [`Volume ${i + 1}`, `Volume ${i + 1}`]
-  )
-]
-
-const eraOptions: Option[] = [
-  ['All', 'Any year'],
-  ['Pre-1900s', 'Pre-1900s'],
-  ['1900-1950', '1900 – 1950'],
-  ['1950-2000', '1950 – 2000'],
-  ['2000s', '2000s'],
-  ['2010s', '2010s'],
-  ['2020s', '2020s']
-]
-
-const formatOptions: Option[] = [
-  ['All', 'All formats'],
-  ['Physical', 'Physical'],
-  ['PDF', 'PDF'],
-  ['Audiobook', 'Audiobook'],
-  ['None', 'None']
-]
-
-const ownershipOptions: Option[] = [
-  ['All', 'All ownership'],
-  ['Purchased', 'Purchased (owned)'],
-  ['Not Purchased', 'Not purchased']
-]
-
-const statusList = ['All', 'Unread', 'Reading', 'Read', 'Wishlist']
-
-const blankBook = (): Book => ({
-  id: '',
-  workId: '',
-  condition: 'Good',
-  shelfLocation: '',
-  title: 'New Book Title',
-  author: 'Author Name',
-  genre: 'FIC',
-  hours: '0h',
-  recommendedBy: '',
-  volume: '',
-  photoUrl: '',
-  summary: '',
-  description: '',
-  authorDescription: '',
-  isbn: '',
-  launchYear: '',
-  originalLanguage: 'English',
-  countryOfOrigin: '',
-  status: 'Unread',
-  purchased: false,
-  purchasePrice: 0,
-  investedAmount: 0,
-  format: 'None',
-  givenTo: '',
-  loanDate: '',
-  shelfRow: '',
-  totalPages: undefined,
-  currentPage: undefined,
-  readingSessions: [],
-  tags: [],
-  collections: [],
-  apiData: {},
-  readingSpans: [],
-  loans: [],
-  quotes: []
-})
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-const paths = {
-  search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
-  close: 'M6 18L18 6M6 6l12 12',
-  filter: 'M3 4h18M6 8h12M9 12h6',
-  download: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
-  sun: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z',
-  moon: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z',
-  batch:
-    'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
-  plus: 'M12 4v16m8-8H4',
-  sparkles:
-    'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
-  edit: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
-  chevron: 'M19 9l-7 7-7-7',
-  book: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'
-}
-
-const Icon = ({
-  d,
-  className = 'w-4 h-4',
-  stroke = 2
-}: {
-  d: string
-  className?: string
-  stroke?: number
-}) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-    aria-hidden="true"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={stroke}
-      d={d}
-    />
-  </svg>
-)
-
-// ─── Small clay building blocks ───────────────────────────────────────────────
-function ClayButton({
-  dark,
-  onClick,
-  title,
-  active = false,
-  children
-}: {
-  dark: boolean
-  onClick?: () => void
-  title: string
-  active?: boolean
-  children: ReactNode
-}) {
-  const P = palette(dark)
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className="w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50"
-      style={
-        active
-          ? clayFill('196,106,79', '#e38a71', '#c46a4f', 3)
-          : {
-              background: P.panel,
-              color: P.body,
-              boxShadow: raised(NEUTRAL_RGB, dark, 4, 10)
-            }
-      }
-    >
-      {children}
-    </button>
-  )
-}
-
-function ClaySelect({
-  label,
-  value,
-  onChange,
-  options,
-  dark
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  options: Option[]
-  dark: boolean
-}) {
-  const P = palette(dark)
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-bold pl-1" style={{ color: P.faint }}>
-        {label}
-      </span>
-      <span
-        className="relative block rounded-2xl"
-        style={{
-          background: P.well,
-          boxShadow: pressed(NEUTRAL_RGB, dark, 3, 7),
-          color: P.faint
-        }}
-      >
-        <select
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="w-full appearance-none bg-transparent rounded-2xl py-2.5 pl-3.5 pr-9 text-[13px] font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40"
-          style={{ color: P.title, colorScheme: dark ? 'dark' : 'light' }}
-        >
-          {options.map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <Icon
-          d={paths.chevron}
-          className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-        />
-      </span>
-    </label>
-  )
-}
-
-function StatusChip({ status, dark }: { status: string; dark: boolean }) {
-  const st = statusTheme[status] ?? statusTheme.Unread
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full"
-      style={{
-        background: dark ? `rgba(${st.rgb},.2)` : `rgba(${st.rgb},.13)`,
-        color: dark ? st.from : st.to,
-        boxShadow: chipShadow(dark)
-      }}
-    >
-      <span
-        className="w-1.5 h-1.5 rounded-full"
-        style={{ background: st.to }}
-      />
-      {status}
-    </span>
-  )
-}
-
-function SectionHeader({
-  title,
-  count,
-  dark,
-  tile = false
-}: {
-  title: string
-  count: number
-  dark: boolean
-  tile?: boolean
-}) {
-  const P = palette(dark)
-  return (
-    <div className="flex items-center gap-3 sm:gap-4">
-      {tile ? (
-        <div
-          className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center font-syne font-black text-xl"
-          style={{
-            background: P.panel,
-            color: P.accent,
-            boxShadow: raised(NEUTRAL_RGB, dark, 5, 12)
-          }}
-        >
-          {title}
-        </div>
-      ) : (
-        <h2
-          className="font-syne font-black text-lg sm:text-xl tracking-tight"
-          style={{ color: P.title }}
-        >
-          {title}
-        </h2>
-      )}
-      <span
-        className="text-xs font-bold tabular-nums px-2.5 py-1 rounded-full"
-        style={{
-          background: P.well,
-          color: P.body,
-          boxShadow: pressed(NEUTRAL_RGB, dark, 2, 4)
-        }}
-      >
-        {count}
-      </span>
-      <div
-        className="h-1.5 flex-1 rounded-full"
-        style={{
-          background: P.well,
-          boxShadow: pressed(NEUTRAL_RGB, dark, 1, 2)
-        }}
-      />
-    </div>
-  )
-}
-
+import {
+  ViewMode,
+  Option,
+  viewModes,
+  sortOptions,
+  genreOptions,
+  volumeOptions,
+  eraOptions,
+  formatOptions,
+  ownershipOptions,
+  statusList,
+  genreName,
+  blankBook,
+  paths,
+  Icon,
+  ClayButton,
+  ClaySelect,
+  StatusChip,
+  SectionHeader,
+} from './components/LibraryShared';
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function LibraryClient({
-  initialWorks,
-  initialCopies,
+  initialBooks,
   initialTotalCount
 }: {
-  initialWorks: BookWork[]
-  initialCopies: BookCopy[]
+  initialBooks: Book[]
   initialTotalCount: number
 }) {
-  const [books, setBooks] = useState<Book[]>(() => {
-    return initialCopies.map(copy => {
-      const work = initialWorks.find(w => w.id === copy.workId)
-      return {
-        id: copy.id,
-        workId: work?.id || '',
-        title: work?.title || '',
-        author: work?.author || '',
-        genre: work?.genre || '',
-        hours: work?.hours || '',
-        recommendedBy: work?.recommendedBy || '',
-        volume: work?.volume || '',
-        photoUrl: work?.photoUrl || '',
-        summary: work?.summary || '',
-        description: work?.description || '',
-        launchYear: work?.launchYear || '',
-        originalLanguage: work?.originalLanguage || '',
-        countryOfOrigin: work?.countryOfOrigin || '',
-        authorDescription: work?.authorDescription || '',
-        coverFile: work?.coverFile || '',
-        isbn: work?.isbn || '',
-        tags: (work?.tags as string[]) || [],
-        collections: (work?.collections as string[]) || [],
-        series:
-          (work?.series as { name: string; number: number } | null) || null,
-        apiData:
-          (work?.apiData as { googleId?: string; openLibraryId?: string }) ||
-          {},
-        readingSpans: (work?.readingSpans as unknown as ReadingSpan[]) || [],
-
-        format: copy.format || '',
-        condition: copy.condition || '',
-        shelfLocation: copy.shelfLocation || '',
-        purchased: Boolean(copy.purchased),
-        purchasePrice: copy.purchasePrice || 0,
-        investedAmount: copy.investedAmount || 0,
-        status: copy.status || '',
-        pdfPath: copy.pdfPath || '',
-        currentPage: copy.currentPage || 0,
-        totalPages: copy.totalPages || 0,
-        lastReadTimestamp: copy.lastReadTimestamp || '',
-        readingSessions:
-          (copy.readingSessions as unknown as ReadingSession[]) || [],
-        rating: copy.rating || 0,
-        quotes: (copy.quotes as unknown as Quote[]) || [],
-        amazonLink: copy.amazonLink || '',
-        loans: (copy.loans as unknown as LoanRecord[]) || [],
-
-        givenTo:
-          (copy.loans as unknown as LoanRecord[])?.[0]?.borrowerName || '',
-        loanDate: (copy.loans as unknown as LoanRecord[])?.[0]?.dateLent || '',
-        shelfRow: copy.shelfLocation || '',
-        readingStartDate:
-          (work?.readingSpans as unknown as ReadingSpan[])?.[0]?.startDate ||
-          '',
-        readingEndDate:
-          (work?.readingSpans as unknown as ReadingSpan[])?.[0]?.endDate || ''
-      }
-    })
-  })
+  const [books, setBooks] = useState<Book[]>(initialBooks)
   const [totalCount, setTotalCount] = useState(initialTotalCount)
-  const [skip, setSkip] = useState(20)
-  const [hasMore, setHasMore] = useState(initialCopies.length === 20)
+
+  const [hasMore, setHasMore] = useState(initialBooks.length === 20)
   const [loading, setLoading] = useState(false)
 
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [volumeFilter, setVolumeFilter] = useState('All')
-  const [genreFilter, setGenreFilter] = useState('All')
-  const [authorFilter, setAuthorFilter] = useState('All')
-  const [yearFilter, setYearFilter] = useState('All')
-  const [formatFilter, setFormatFilter] = useState('All')
-  const [purchasedFilter, setPurchasedFilter] = useState('All')
-  const [shelfFilter, setShelfFilter] = useState('All')
-  const [sortBy, setSortBy] = useState('id')
+    const [filters, setFilters] = useQueryStates({
+    search: parseAsString.withDefault(''),
+    statusFilter: parseAsString.withDefault('All'),
+    volumeFilter: parseAsString.withDefault('All'),
+    genreFilter: parseAsString.withDefault('All'),
+    authorFilter: parseAsString.withDefault('All'),
+    yearFilter: parseAsString.withDefault('All'),
+    formatFilter: parseAsString.withDefault('All'),
+    purchasedFilter: parseAsString.withDefault('All'),
+    shelfFilter: parseAsString.withDefault('All'),
+    sortBy: parseAsString.withDefault('id'),
+    skip: parseAsInteger.withDefault(0)
+  }, { history: 'push' });
+
+  const { search, statusFilter, volumeFilter, genreFilter, authorFilter, yearFilter, formatFilter, purchasedFilter, shelfFilter, sortBy, skip } = filters;
+
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -645,14 +285,15 @@ export default function LibraryClient({
       shelfFilter,
       sortBy,
       skip: 0,
-      take: 20
+      take: 20,
+      viewMode
     }).then(res => {
       if (!active) return
       if (res.books) {
         setBooks(res.books as Book[])
         setTotalCount(res.totalCount || 0)
-        setSkip(20)
-        setHasMore(res.books.length === 20)
+        setFilters({ skip: 0 });
+        setHasMore(res.hasMore ?? res.books.length === 20)
       }
       setLoading(false)
     })
@@ -689,12 +330,17 @@ export default function LibraryClient({
       shelfFilter,
       sortBy,
       skip,
-      take: 20
+      take: 20,
+      viewMode
     })
     if (res.books) {
-      setBooks(prev => [...prev, ...(res.books as Book[])])
-      setSkip(prev => prev + 20)
-      setHasMore(res.books.length === 20)
+      setBooks(prev => {
+        const existingIds = new Set(prev.map(b => b.id))
+        const newBooks = (res.books as Book[]).filter(b => !existingIds.has(b.id))
+        return [...prev, ...newBooks]
+      })
+      setFilters({ skip: skip + 20 });
+      setHasMore(res.hasMore ?? res.books.length === 20);
     }
     setLoading(false)
   }, [
@@ -845,16 +491,7 @@ export default function LibraryClient({
   }
 
   const resetFilters = () => {
-    setSearch('')
-    setStatusFilter('All')
-    setVolumeFilter('All')
-    setGenreFilter('All')
-    setAuthorFilter('All')
-    setYearFilter('All')
-    setFormatFilter('All')
-    setPurchasedFilter('All')
-    setShelfFilter('All')
-    setSortBy('id')
+    setFilters(null);
   }
 
   const hasActiveFilters =
@@ -1125,47 +762,47 @@ export default function LibraryClient({
     set: (v: string) => void
     options: Option[]
   }[] = [
-    { label: 'Sort by', value: sortBy, set: setSortBy, options: sortOptions },
+    { label: 'Sort by', value: sortBy, set: (v: string) => setFilters({ sortBy: v }), options: sortOptions },
     {
       label: 'Collection',
       value: genreFilter,
-      set: setGenreFilter,
+      set: (v: string) => setFilters({ genreFilter: v }),
       options: genreOptions
     },
     {
       label: 'Volume',
       value: volumeFilter,
-      set: setVolumeFilter,
+      set: (v: string) => setFilters({ volumeFilter: v }),
       options: volumeOptions
     },
     {
       label: 'Author',
       value: authorFilter,
-      set: setAuthorFilter,
+      set: (v: string) => setFilters({ authorFilter: v }),
       options: authorOptions
     },
     {
       label: 'Era',
       value: yearFilter,
-      set: setYearFilter,
+      set: (v: string) => setFilters({ yearFilter: v }),
       options: eraOptions
     },
     {
       label: 'Format',
       value: formatFilter,
-      set: setFormatFilter,
+      set: (v: string) => setFilters({ formatFilter: v }),
       options: formatOptions
     },
     {
       label: 'Physical location',
       value: shelfFilter,
-      set: setShelfFilter,
+      set: (v: string) => setFilters({ shelfFilter: v }),
       options: shelfOptions
     },
     {
       label: 'Ownership',
       value: purchasedFilter,
-      set: setPurchasedFilter,
+      set: (v: string) => setFilters({ purchasedFilter: v }),
       options: ownershipOptions
     }
   ]
@@ -1326,7 +963,7 @@ export default function LibraryClient({
                 type="text"
                 placeholder="Search books…"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => setFilters({ search: e.target.value })}
                 className="w-full rounded-full py-3 pl-11 pr-10 text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-secondary/40 placeholder:text-slate-400"
                 style={{
                   background: P.well,
@@ -1336,7 +973,7 @@ export default function LibraryClient({
               />
               {search && (
                 <button
-                  onClick={() => setSearch('')}
+                  onClick={() => setFilters({ search: '' })}
                   aria-label="Clear search"
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
                   style={{ color: P.faint }}
@@ -1361,7 +998,7 @@ export default function LibraryClient({
                   return (
                     <button
                       key={s}
-                      onClick={() => setStatusFilter(s)}
+                      onClick={() => setFilters({ statusFilter: s })}
                       className={`py-2 rounded-full text-[12px] font-bold transition-all duration-200 active:scale-95 ${s === 'All' ? 'col-span-2' : ''}`}
                       style={
                         on
@@ -1656,18 +1293,10 @@ export default function LibraryClient({
                         'wishlist'
                       ]
                       if (
-                        specialViews.includes(id) ||
-                        specialViews.includes(viewMode)
+                        specialViews.includes(id as ViewMode) ||
+                        specialViews.includes(viewMode as ViewMode)
                       ) {
-                        setSearch('')
-                        setStatusFilter('All')
-                        setGenreFilter('All')
-                        setAuthorFilter('All')
-                        setVolumeFilter('All')
-                        setYearFilter('All')
-                        setFormatFilter('All')
-                        setPurchasedFilter('All')
-                        setShelfFilter('All')
+                        setFilters(null)
                       }
                       setViewMode(id)
                     }}
@@ -2061,23 +1690,23 @@ export default function LibraryClient({
           open={mobileFilterOpen}
           onClose={() => setMobileFilterOpen(false)}
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(v: string) => setFilters({ search: v })}
           statusFilter={statusFilter}
-          onStatusChange={setStatusFilter}
+          onStatusChange={(v: string) => setFilters({ statusFilter: v })}
           sortBy={sortBy}
-          onSortByChange={setSortBy}
+          onSortByChange={(v: string) => setFilters({ sortBy: v })}
           genreFilter={genreFilter}
-          onGenreChange={setGenreFilter}
+          onGenreChange={(v: string) => setFilters({ genreFilter: v })}
           volumeFilter={volumeFilter}
-          onVolumeChange={setVolumeFilter}
+          onVolumeChange={(v: string) => setFilters({ volumeFilter: v })}
           authorFilter={authorFilter}
-          onAuthorChange={setAuthorFilter}
+          onAuthorChange={(v: string) => setFilters({ authorFilter: v })}
           yearFilter={yearFilter}
-          onYearChange={setYearFilter}
+          onYearChange={(v: string) => setFilters({ yearFilter: v })}
           formatFilter={formatFilter}
-          onFormatChange={setFormatFilter}
+          onFormatChange={(v: string) => setFilters({ formatFilter: v })}
           purchasedFilter={purchasedFilter}
-          onPurchasedChange={setPurchasedFilter}
+          onPurchasedChange={(v: string) => setFilters({ purchasedFilter: v })}
           books={books}
           onReset={resetFilters}
         />
@@ -2122,42 +1751,79 @@ export default function LibraryClient({
           />
         )}
         {readingPdfBook && readingPdfBook.pdfPath && (
-          <PdfReaderModal
-            pdfUrl={readingPdfBook.pdfPath}
-            initialPage={readingPdfBook.currentPage || 1}
-            onClose={sessionData => {
-              // Update book with new session and reading progress
-              const newSession = {
-                date: new Date().toISOString().split('T')[0],
-                durationMinutes: sessionData.durationMinutes,
-                pagesRead: Math.max(
-                  0,
-                  sessionData.endPage - sessionData.startPage
-                ),
-                startPage: sessionData.startPage,
-                endPage: sessionData.endPage
-              }
+          <>
+            {readingPdfBook.pdfPath.endsWith('.epub') ? (
+              <EpubReaderModal
+                epubUrl={readingPdfBook.pdfPath}
+                initialLocation={readingPdfBook.currentPage || 0}
+                onClose={sessionData => {
+                  const newSession = {
+                    date: new Date().toISOString().split('T')[0],
+                    durationMinutes: sessionData.durationMinutes,
+                    pagesRead: Math.max(0, sessionData.endPage - sessionData.startPage),
+                    startPage: sessionData.startPage,
+                    endPage: sessionData.endPage
+                  }
 
-              const updatedBook = {
-                ...readingPdfBook,
-                currentPage: sessionData.endPage,
-                lastReadTimestamp: new Date().toISOString(),
-                readingSessions: [
-                  ...(readingPdfBook.readingSessions || []),
-                  newSession
-                ]
-              }
+                  const updatedBook = {
+                    ...readingPdfBook,
+                    currentPage: 1, // Store something safe, or ideally we'd update schema to support string locations
+                    lastReadTimestamp: new Date().toISOString(),
+                    readingSessions: [
+                      ...(readingPdfBook.readingSessions || []),
+                      newSession
+                    ]
+                  }
 
-              setBooks(prev => {
-                const newBooks = prev.map(b =>
-                  b.id === readingPdfBook.id ? updatedBook : b
-                )
-                saveBooks(newBooks)
-                return newBooks
-              })
-              setReadingPdfBook(null)
-            }}
-          />
+                  setBooks(prev => {
+                    const newBooks = prev.map(b =>
+                      b.id === readingPdfBook.id ? updatedBook : b
+                    )
+                    saveBooks(newBooks)
+                    return newBooks
+                  })
+                  setReadingPdfBook(null)
+                }}
+              />
+            ) : (
+              <PdfReaderModal
+                pdfUrl={readingPdfBook.pdfPath}
+                initialPage={readingPdfBook.currentPage || 1}
+                onClose={sessionData => {
+                  // Update book with new session and reading progress
+                  const newSession = {
+                    date: new Date().toISOString().split('T')[0],
+                    durationMinutes: sessionData.durationMinutes,
+                    pagesRead: Math.max(
+                      0,
+                      sessionData.endPage - sessionData.startPage
+                    ),
+                    startPage: sessionData.startPage,
+                    endPage: sessionData.endPage
+                  }
+
+                  const updatedBook = {
+                    ...readingPdfBook,
+                    currentPage: sessionData.endPage,
+                    lastReadTimestamp: new Date().toISOString(),
+                    readingSessions: [
+                      ...(readingPdfBook.readingSessions || []),
+                      newSession
+                    ]
+                  }
+
+                  setBooks(prev => {
+                    const newBooks = prev.map(b =>
+                      b.id === readingPdfBook.id ? updatedBook : b
+                    )
+                    saveBooks(newBooks)
+                    return newBooks
+                  })
+                  setReadingPdfBook(null)
+                }}
+              />
+            )}
+          </>
         )}
 
         {/* Global toast notifications */}

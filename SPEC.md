@@ -24,5 +24,5 @@
 - [x] **Physical Location Filter:** Surface the `shelfLocation` field as an active filter in the UI (not just stored data).
 
 ## Phase 4: Enhancements & New Ideas
-- [ ] **"Reading Wrapped" Annual Summary:** Leverage existing data (reading timer, sessions, heatmap, shareable cards) to generate an end-of-year personalized "Reading Wrapped" card (total hours, books finished, longest streak, genre breakdown).
-- [ ] **ePub Support:** (Deferred per earlier discussions) Support parsing and reading ePub files natively.
+- [x] **"Reading Wrapped" Annual Summary:** Leverage existing data (reading timer, sessions, heatmap, shareable cards) to generate an end-of-year personalized "Reading Wrapped" card (total hours, books finished, longest streak, genre breakdown).
+- [x] **ePub Support:** (Deferred per earlier discussions) Support parsing and reading ePub files natively.

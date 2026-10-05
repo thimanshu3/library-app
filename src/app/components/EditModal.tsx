@@ -915,7 +915,7 @@ export default function EditModal({
                     >
                       <input
                         type="file"
-                        accept="application/pdf"
+                        accept="application/pdf,application/epub+zip"
                         onChange={handlePdfUpload}
                         disabled={uploadingPdf}
                         className="hidden"

@@ -12,8 +12,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'No file uploaded' }, { status: 400 })
     }
 
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ success: false, error: 'File must be a PDF' }, { status: 400 })
+    if (file.type !== 'application/pdf' && file.type !== 'application/epub+zip') {
+      return NextResponse.json({ success: false, error: 'File must be a PDF or EPUB' }, { status: 400 })
     }
 
     const bytes = await file.arrayBuffer()

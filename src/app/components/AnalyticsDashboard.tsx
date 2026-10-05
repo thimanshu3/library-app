@@ -2,10 +2,11 @@
 
 import { Book } from '../types'
 import ReadingHeatmap from './ReadingHeatmap'
+import { useState } from 'react'
+import ReadingWrappedModal from './ReadingWrappedModal'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
-  Tooltip, ResponsiveContainer, Legend, RadarChart,
-  PolarGrid, PolarAngleAxis, Radar
+  Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
 
 const COLORS = [
@@ -54,6 +55,8 @@ function KpiCard({ label, value, sub, color = '', icon }: KpiCardProps) {
 }
 
 export default function AnalyticsDashboard({ books }: { books: Book[] }) {
+  const [showWrapped, setShowWrapped] = useState(false)
+
   const readBooks = books.filter(b => b.status === 'Read')
   const reading = books.filter(b => b.status === 'Reading')
   const owned = books.filter(b => b.purchased)
@@ -61,8 +64,9 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
   const pct = books.length > 0 ? Math.round((readBooks.length / books.length) * 100) : 0
 
   // Yearly Goal setup
+  const currentYear = new Date().getFullYear()
   const yearlyGoal = 50
-  const readThisYear = books.filter(b => b.status === 'Read' && b.readingEndDate && b.readingEndDate.startsWith(new Date().getFullYear().toString())).length
+  const readThisYear = books.filter(b => b.status === 'Read' && b.readingEndDate && b.readingEndDate.startsWith(currentYear.toString())).length
   const goalProgress = Math.min(100, Math.round((readThisYear / yearlyGoal) * 100))
 
   // Genre distribution
@@ -108,10 +112,18 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
       {/* Goal & Heatmap Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div
-          className="lg:col-span-1 p-6 rounded-[32px] flex flex-col justify-center items-center text-center gap-4"
+          className="lg:col-span-1 p-6 rounded-[32px] flex flex-col justify-center items-center text-center gap-4 relative overflow-hidden"
           style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
         >
-          <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>{new Date().getFullYear()} Reading Goal</h3>
+          <div className="flex w-full justify-between items-center z-10 px-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--on-surface-variant)' }}>{currentYear} Reading Goal</h3>
+            <button
+              onClick={() => setShowWrapped(true)}
+              className="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gradient-to-r from-[#ec4899] to-[#f97316] text-white hover:scale-105 active:scale-95 transition-all shadow-md"
+            >
+              See Wrapped
+            </button>
+          </div>
           <div className="relative w-32 h-32 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="8" style={{ color: 'var(--outline-variant)' }} />
@@ -321,6 +333,14 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
           </div>
         </div>
       </div>
+
+      {showWrapped && (
+        <ReadingWrappedModal 
+          books={books} 
+          isDark={typeof document !== 'undefined' && document.documentElement.classList.contains('dark')} 
+          onClose={() => setShowWrapped(false)} 
+        />
+      )}
     </div>
   )
 }
