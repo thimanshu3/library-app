@@ -2,6 +2,7 @@
 
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { requireOwner } from '@/lib/server/auth'
 import { revalidatePath } from 'next/cache'
 import { BookCopy, BookWork, JoinedBook, ReadingSpan, ReadingSession, Quote, LoanRecord } from './types'
 
@@ -20,6 +21,7 @@ export async function fetchFilteredBooksAction(params: {
   take?: number
   viewMode?: string
 }): Promise<{ books?: JoinedBook[]; totalCount?: number; hasMore?: boolean; error?: string }> {
+  await requireOwner()
   const {
     search,
     statusFilter,
@@ -323,6 +325,7 @@ export async function fetchFilteredBooksAction(params: {
 }
 
 export async function saveLibraryAction(works: BookWork[], copies: BookCopy[]) {
+  await requireOwner()
   try {
     const mappedWorks = works.map((w: BookWork) => ({
       ...w,
@@ -373,6 +376,7 @@ export async function saveLibraryAction(works: BookWork[], copies: BookCopy[]) {
 }
 
 export async function importBooksAction(works: BookWork[], copies: BookCopy[]) {
+  await requireOwner()
   try {
     const mappedWorks = works.map((w: BookWork) => ({
       ...w,

@@ -1,38 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaleTeacup
 
-version : 0.0.1
+A private personal library built with Next.js App Router, React, Prisma, and Postgres. This installation has one owner account; all library reads, mutations, uploads, price lookups, and ebook downloads require that account.
 
-## Getting Started
+## Local setup
 
-First, run the development server:
+Use Node.js 22.13 or newer (Node 24 LTS recommended) and pnpm 10.22.0. pnpm is the primary package manager; the npm lockfile is kept synchronized for existing integrations.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
+```sh
+pnpm install
+cp .env.example .env.local
+# Fill DATABASE_URL and DIRECT_URL for your Postgres database.
+pnpm auth:setup
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+If `.env.local` already contains database settings, keep it and add the owner settings with `pnpm auth:setup`. Do not overwrite it with the example. The interactive command hides password input and stores a salted scrypt hash plus a random session key. Scrypt uses N=32768, r=8, p=3, one of the minimum profiles in [OWASP's password storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Passwords must contain at least 12 characters. Existing databases do not need an ownership migration for this single owner setup.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For an automatically generated account:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+pnpm auth:setup --generate
+```
 
-## Learn More
+Generated credentials are saved to `.local/owner-credentials.txt`, excluded from Git, with file permissions restricted to the owner. They are never printed by the setup command. To choose a new password and revoke existing sessions, run `pnpm auth:setup --rotate`, then restart the application.
 
-To learn more about Next.js, take a look at the following resources:
+Open `http://localhost:3000`. Unauthenticated requests redirect to `/login`. Missing authentication configuration fails closed. Sessions last 12 hours, use encrypted HttpOnly cookies, and use Secure cookies in production. The library header provides sign-out.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Private ebooks
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Local development stores ebooks in `.data/library-files`, outside `public/` and excluded from Git. Uploads accept PDF or EPUB files up to 32 MB, validate their content independently of the filename/MIME declaration, and bound multipart requests before parsing. EPUB archives have entry, expansion, encryption, and path checks. PDF checks validate basic structure; they do not perform malware scanning. Keep files from trusted sources.
 
-## Deploy on Vercel
+Existing public attachments must be migrated before running this version:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```sh
+pnpm ebooks:migrate
+# Or supply an absolute mounted storage directory:
+pnpm ebooks:migrate /absolute/persistent/library-files
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The migration verifies SHA-256 checksums before removing the public originals. It preserves filenames, so existing database `/pdfs/<filename>` links work through an authenticated compatibility route. New uploads use opaque `/api/files/<uuid>.<extension>` URLs. Both routes support PDF byte ranges and disable response caching. Back up the private directory alongside the database. It is runtime data and is deliberately excluded from deployment bundles.
+
+Production must explicitly configure durable storage. A temporary serverless filesystem is unsuitable.
+
+For a persistent mounted volume:
+
+```dotenv
+LIBRARY_STORAGE_DRIVER=local
+LIBRARY_STORAGE_DIRECTORY=/absolute/persistent/library-files
+```
+
+For a private S3 or S3-compatible bucket:
+
+```dotenv
+LIBRARY_STORAGE_DRIVER=s3
+LIBRARY_STORAGE_BUCKET=your-private-bucket
+LIBRARY_STORAGE_REGION=ap-south-1
+# Optional HTTPS endpoint for another S3-compatible provider:
+LIBRARY_STORAGE_ENDPOINT=
+```
+
+Enable the bucket's public access block and grant the application's IAM role only the required object permissions. Use the deployment role or standard AWS credential environment variables. Object keys use the `library-files/` prefix. Transfer migrated files under that prefix, preserving their names, when switching from local storage to S3. Downloads are proxied through the authenticated application. The adapter has mocked regression tests; it still needs a live check against your chosen provider. Automatic cleanup of replaced, deleted, and abandoned uploads remains in the audit backlog.
+
+## Production configuration
+
+Provide `DATABASE_URL`, `DIRECT_URL`, `LIBRARY_OWNER_NAME`, `LIBRARY_OWNER_PASSWORD_HASH`, and `LIBRARY_SESSION_SECRET` through the deployment's secret settings. Never commit `.env.local`, generated credentials, or ebook data. Use HTTPS. Behind a reverse proxy, set `LIBRARY_APP_ORIGIN` to the canonical HTTPS origin; mutation endpoints reject absent or mismatched Origin headers.
+
+Sign-in, uploads, and price lookups have bounded in-process rate limits. Multi-instance deployments need an additional shared limiter at the gateway. Price lookups accept only HTTPS Amazon product links for India, the US, and the UK; they reject non-public DNS results, pin the validated address, do not follow redirects or execute page scripts, and bound response size and duration. Amazon may block automated requests; the application reports provider failures.
+
+```sh
+pnpm build
+pnpm start
+```
+
+## Checks and audit tracking
+
+```sh
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm build
+```
+
+Security tests cover session validity and rotation, sign-in/sign-out, request origin and body limits, anonymous action/API access, forged uploads, EPUB archive checks, private storage and ranges, and price lookup URL/DNS/redirect boundaries. Whole-project lint still reports pre-existing issues documented in the audit; the security files pass targeted lint.
+
+See [the codebase audit](docs/codebase-audit-2026-10-05.md), [the implementation backlog](docs/codebase-audit-backlog-2026-10-05.csv), and [completed fix batches](docs/audit-fixes-2026-10-05.md). Dependency advisories and the remaining functionality/performance work are tracked there.

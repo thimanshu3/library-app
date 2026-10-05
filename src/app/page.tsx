@@ -1,12 +1,22 @@
 import { Suspense } from 'react';
 import LibraryClient from './LibraryClient';
 import { fetchFilteredBooksAction } from './actions';
+import { getOwner } from '@/lib/server/auth';
+import { HttpError } from '@/lib/server/http';
+import { redirect } from 'next/navigation';
 
 async function LibraryContent({
   searchParams
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  let owner;
+  try {
+    owner = await getOwner();
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 503) throw error;
+  }
+  if (!owner) redirect('/login');
   const params = await searchParams;
 
   const search = typeof params.search === 'string' ? params.search : undefined;

@@ -30,6 +30,7 @@ import {
 import LoanTracker from './components/LoanTracker'
 import MobileFilterSheet from './components/MobileFilterSheet'
 import ToastProvider, { toast } from './components/Toast'
+import SignOutButton from './components/SignOutButton'
 
 const PdfReaderModal = dynamic(() => import('./components/PdfReaderModal'), {
   ssr: false
@@ -1271,6 +1272,7 @@ export default function LibraryClient({
               >
                 <Icon d={isDark ? paths.sun : paths.moon} />
               </ClayButton>
+              <SignOutButton />
             </div>
           </header>
 
