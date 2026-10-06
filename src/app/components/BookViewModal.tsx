@@ -1,7 +1,10 @@
 'use client'
+import { useDialog } from '../hooks/use-dialog'
+import BookCover from './BookCover'
+import { attachmentType, localToday, progressPercent, calendarDaysBetween } from '@/lib/library-domain'
 
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   NEUTRAL_RGB,
   chipShadow,
@@ -16,7 +19,6 @@ import ReadingTimer from './ReadingTimer'
 import ShareCardModal from './ShareCardModal'
 
 // Change to match your currency
-const CURRENCY = '₹'
 
 // Extra Work/Copy fields, typed loosely so this compiles even if `Book` lacks them
 type Extra = Partial<{
@@ -41,6 +43,7 @@ const formatDate = (d?: string | null) => {
   if (!d) return null
   try {
     return new Date(d).toLocaleDateString('en-US', {
+      timeZone: 'UTC',
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -49,15 +52,12 @@ const formatDate = (d?: string | null) => {
     return d
   }
 }
-const getDaysOut = (loanDate?: string): number | null => {
-  if (!loanDate) return null
-  return Math.floor((Date.now() - new Date(loanDate).getTime()) / 86400000)
-}
+
 const stripHtml = (html: string) => {
   if (typeof window === 'undefined') return html.replace(/<[^>]*>/g, '')
-  const div = document.createElement('div')
-  div.innerHTML = html
-  return div.textContent || div.innerText || ''
+  const parsed = new DOMParser().parseFromString(html, 'text/html')
+  parsed.querySelectorAll('script,style,iframe,object,embed').forEach(node => node.remove())
+  return parsed.body.textContent || ''
 }
 const toList = (v: unknown): string[] => {
   if (Array.isArray(v))
@@ -331,28 +331,15 @@ export default function BookViewModal({
   onClose,
   onEdit,
   onReadPdf,
-  onSave,
   isDark = false
 }: {
   book: Book
   onClose: () => void
-  onSave?: (b: Book) => void
   onEdit?: () => void
   onReadPdf?: () => void
   isDark?: boolean
 }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', h)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', h)
-      document.body.style.overflow = ''
-    }
-  }, [onClose])
-
+  const dialogRef = useDialog(onClose)
   const [isSharing, setIsSharing] = useState(false)
   const [isTiming, setIsTiming] = useState(false)
 
@@ -369,10 +356,11 @@ export default function BookViewModal({
   const Rn = (d?: number, bl?: number) => raised(NEUTRAL_RGB, isDark, d, bl)
   const Vn = (d?: number, bl?: number) => pressed(NEUTRAL_RGB, isDark, d, bl)
 
-  const cover = book.coverFile || book.photoUrl || ''
+  const cover = !!(book.coverFile || book.photoUrl)
   const totalPages = book.totalPages || b.pageCount || 0
-  const daysOut = getDaysOut(book.loanDate)
-  const isOverdue = daysOut !== null && daysOut > 30
+  const daysOut = calendarDaysBetween(book.loanDate)
+  const activeLoan = book.loans.find(loan => !loan.dateReturned)
+  const isOverdue = activeLoan?.expectedReturnDate ? localToday() > activeLoan.expectedReturnDate : daysOut !== null && daysOut > 30
   const startDate = formatDate(book.readingStartDate)
   const endDate = formatDate(book.readingEndDate) || formatDate(b.dateRead)
   const loanDate = formatDate(book.loanDate)
@@ -391,12 +379,7 @@ export default function BookViewModal({
   const tagList = toList(b.tags)
   const collectionList = toList(b.collections)
 
-  // Reading progress
-  let progress = -1
-  if (book.status === 'Read') progress = 100
-  else if (book.status === 'Reading' && book.currentPage && totalPages > 0) {
-    progress = Math.min(99, Math.round((book.currentPage / totalPages) * 100))
-  }
+  const progress = progressPercent(book) ?? -1
 
   // Meta rows
   type Row = { label: string; value: string }
@@ -418,7 +401,7 @@ export default function BookViewModal({
     row(
       'Paid',
       book.purchased && (book.purchasePrice || 0) > 0
-        ? `${CURRENCY}${(book.purchasePrice || 0).toFixed(0)}`
+        ? new Intl.NumberFormat(undefined, { style: 'currency', currency: book.currency || 'INR' }).format(book.purchasePrice || 0)
         : ''
     ),
     row('Via', book.recommendedBy),
@@ -429,7 +412,7 @@ export default function BookViewModal({
 
   const hasActions =
     book.status === 'Read' ||
-    (book.status === 'Reading' && onSave) ||
+    (book.format === 'Physical' && ['Unread', 'Reading'].includes(book.status)) ||
     (book.pdfPath && onReadPdf) ||
     book.amazonLink
   const actionCls =
@@ -598,6 +581,7 @@ export default function BookViewModal({
                       style={{ color: P.title }}
                     >
                       {new Date(s.date).toLocaleDateString('en-US', {
+                        timeZone: 'UTC',
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric'
@@ -700,12 +684,8 @@ export default function BookViewModal({
         {cover && (
           <div
             className="absolute inset-0 scale-125 blur-2xl opacity-40"
-            style={{
-              backgroundImage: `url(${cover})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          />
+            aria-hidden="true"
+          ><BookCover book={book} decorative className="h-full w-full object-cover" /></div>
         )}
         <div
           className="relative z-10 w-[130px] sm:w-[150px] aspect-[2/3] rounded-2xl overflow-hidden -rotate-2 hover:rotate-0 transition-transform duration-500"
@@ -715,12 +695,8 @@ export default function BookViewModal({
           }}
         >
           {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover}
-              alt={book.title}
-              className="w-full h-full object-cover"
-            />
+
+            <BookCover book={book} className="w-full h-full object-cover" />
           ) : (
             <div
               className="w-full h-full flex flex-col items-center justify-center gap-2"
@@ -851,7 +827,7 @@ export default function BookViewModal({
             <div
               className="h-full rounded-full transition-[width] duration-700"
               style={{
-                width: `${Math.max(progress, 8)}%`,
+                width: `${progress}%`,
                 background: `linear-gradient(90deg, ${st.from}, ${st.to})`,
                 boxShadow: `inset 0 2px 3px rgba(255,255,255,.5), 0 2px 6px rgba(${st.rgb},.45)`
               }}
@@ -1054,7 +1030,7 @@ export default function BookViewModal({
               Share to socials
             </button>
           )}
-          {book.status === 'Reading' && onSave && (
+          {book.format === 'Physical' && ['Unread', 'Reading'].includes(book.status) && (
             <button
               onClick={() => setIsTiming(true)}
               className={actionCls}
@@ -1071,8 +1047,8 @@ export default function BookViewModal({
               style={clayFill('196,106,79', '#e38a71', '#c46a4f', 4)}
             >
               <Icon d={paths.book} className="w-4 h-4" stroke={2.5} />
-              Read document
-              {book.currentPage !== undefined && (
+              Read {attachmentType(book) === 'epub' ? 'EPUB' : 'PDF'}
+              {attachmentType(book) === 'pdf' && !!book.currentPage && (
                 <span className="opacity-70">p.{book.currentPage}</span>
               )}
             </button>
@@ -1101,7 +1077,7 @@ export default function BookViewModal({
   const bookNo = String(book.id).replace('c_', '')
 
   return (
-    <>
+    <div ref={dialogRef}>
       {/* ══ MOBILE: Full-page slide-in (< sm) ════════════════════════════════ */}
       <div
         className="sm:hidden fixed inset-0 z-50 animate-page-slide-in flex flex-col overflow-hidden"
@@ -1297,25 +1273,13 @@ export default function BookViewModal({
         />
       )}
 
-      {isTiming && onSave && (
+      {isTiming && (
         <ReadingTimer
           book={book}
           onClose={() => setIsTiming(false)}
-          onSaveSession={(durationMinutes, startPage, endPage) => {
-            const newSession = {
-              date: new Date().toISOString(),
-              durationMinutes,
-              startPage,
-              endPage
-            }
-            onSave({
-              ...book,
-              currentPage: endPage > 0 ? endPage : book.currentPage,
-              readingSessions: [...(book.readingSessions || []), newSession]
-            })
-          }}
+
         />
       )}
-    </>
+    </div>
   )
 }

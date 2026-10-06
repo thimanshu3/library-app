@@ -1,4 +1,8 @@
 'use client'
+import BookCover from './BookCover'
+import { deliverEnrichment } from '@/lib/client-enrichment'
+import { useDialog } from '../hooks/use-dialog'
+import { useTheme } from '../hooks/use-theme'
 
 import { useEffect, useRef, useState } from 'react'
 import { Book } from '../types'
@@ -35,29 +39,18 @@ export default function AddBookModal({
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<Partial<Book>[]>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [isDark, setIsDark] = useState(false)
+  const isDark = useTheme()
   const [isScanning, setIsScanning] = useState(false)
 
+  const [searchError, setSearchError] = useState('')
+  const generation = useRef(0)
+  const controller = useRef<AbortController | null>(null)
+  useEffect(() => () => { controller.current?.abort() }, [])
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
-    const obs = new MutationObserver(() =>
-      setIsDark(document.documentElement.classList.contains('dark'))
-    )
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => obs.disconnect()
-  }, [])
 
-  useEffect(() => {
-    searchInputRef.current?.focus()
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
 
+  const dialogRef = useDialog(onClose)
   const P = palette(isDark)
   const R = (d = 8, b = 20) => raised(NEUTRAL_RGB, isDark, d, b)
   const Pr = (d = 4, b = 10) => pressed(NEUTRAL_RGB, isDark, d, b)
@@ -66,6 +59,11 @@ export default function AddBookModal({
     if (e) e.preventDefault()
     if (!query.trim()) return
 
+    const token = ++generation.current
+    controller.current?.abort()
+    const request = new AbortController(); controller.current = request
+    const timeout = setTimeout(() => request.abort(), 10000)
+    setSearchError('')
     setLoading(true)
     setHasSearched(true)
     setResults([])
@@ -73,17 +71,11 @@ export default function AddBookModal({
     const q = encodeURIComponent(query.trim())
 
     try {
-      const cleanedQuery = query.replace(/[^0-9X]/gi, '')
-      const isIsbn = cleanedQuery.length === 10 || cleanedQuery.length === 13
-      const apiKey = 'AIzaSyAMnMWpARYGX90458capjGV60xqTpfhiB4'
-
-      const googleBooksUrl = isIsbn
-        ? `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanedQuery}&key=${apiKey}`
-        : `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10&key=${apiKey}`
+      const googleBooksUrl = `/api/book-search/google?q=${q}`
 
       const [googleRes, olRes] = await Promise.allSettled([
-        fetch(googleBooksUrl),
-        fetch(`https://openlibrary.org/search.json?q=${q}&limit=10`)
+        fetch(googleBooksUrl, { signal: request.signal }),
+        fetch(`https://openlibrary.org/search.json?q=${q}&limit=10`, { signal: request.signal })
       ])
 
       type GoogleBookItem = {
@@ -104,7 +96,6 @@ export default function AddBookModal({
 
       if (googleRes.status === 'fulfilled' && googleRes.value.ok) {
         const data = await googleRes.value.json()
-        console.log(data)
         if (data.items) {
           data.items.forEach((item: GoogleBookItem) => {
             const vol = item.volumeInfo
@@ -253,11 +244,15 @@ export default function AddBookModal({
         }
       }
 
+      if (token !== generation.current) return
+      if (request.signal.aborted) setSearchError('Metadata search timed out. Retry or add the book manually.')
+      else if (![googleRes, olRes].some(result => result.status === 'fulfilled' && result.value.ok)) setSearchError('Metadata providers are unavailable. Retry or add the book manually.')
       setResults(uniqueBooks)
-    } catch (err) {
-      console.error(err)
+    } catch {
+      if (token === generation.current) setSearchError('Metadata search failed. Retry or add manually.')
     } finally {
-      setLoading(false)
+      clearTimeout(timeout)
+      if (token === generation.current) setLoading(false)
     }
   }
 
@@ -273,12 +268,8 @@ export default function AddBookModal({
           )
           if (wikiRes.ok) {
             const wikiData = await wikiRes.json()
-            if (wikiData.extract_html && wikiData.type !== 'disambiguation') {
-              window.dispatchEvent(
-                new CustomEvent('wiki-enrichment', {
-                  detail: { bookIsbn: book.isbn, authorDescription: wikiData.extract_html }
-                })
-              )
+            if (wikiData.extract && wikiData.type !== 'disambiguation') {
+              deliverEnrichment({ bookKey: `${book.title}|${book.author}|${book.isbn || ''}`, authorDescription: wikiData.extract })
             }
           }
         }
@@ -300,12 +291,8 @@ export default function AddBookModal({
               )
               if (wikiRes.ok) {
                 const wikiData = await wikiRes.json()
-                if (wikiData.extract_html && wikiData.type !== 'disambiguation') {
-                  window.dispatchEvent(
-                    new CustomEvent('wiki-enrichment', {
-                      detail: { bookIsbn: book.isbn, description: wikiData.extract_html }
-                    })
-                  )
+                if (wikiData.extract && wikiData.type !== 'disambiguation') {
+                  deliverEnrichment({ bookKey: `${book.title}|${book.author}|${book.isbn || ''}`, description: wikiData.extract })
                 }
               }
             }
@@ -320,7 +307,7 @@ export default function AddBookModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+      ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
@@ -403,7 +390,7 @@ export default function AddBookModal({
                   d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
-                ref={searchInputRef}
+                ref={searchInputRef} aria-label="Search title, author or ISBN"
                 type="text"
                 placeholder="Enter book name or ISBN…"
                 value={query}
@@ -457,6 +444,7 @@ export default function AddBookModal({
           </button>
         </div>
 
+        {searchError && <p role="alert" className="px-5 py-3 text-sm text-red-600">{searchError}</p>}
         {/* ── Results ── */}
         <div
           className="flex-1 overflow-y-auto custom-scrollbar p-5"
@@ -498,8 +486,7 @@ export default function AddBookModal({
                     }}
                   >
                     {book.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={book.photoUrl} alt="Cover" className="w-full h-full object-cover" />
+                      <BookCover book={book} className="w-full h-full object-cover" />
                     ) : (
                       <div
                         className="w-full h-full flex items-center justify-center text-[9px] font-bold uppercase text-center p-1"

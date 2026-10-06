@@ -1,427 +1,225 @@
 'use server'
 
-import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { databaseRead } from '@/lib/server/database-read'
+import { actionError } from '@/lib/server/action-result'
 import { requireOwner } from '@/lib/server/auth'
+import { HttpError } from '@/lib/server/http'
+import { bookInclude, toBook } from '@/lib/server/library-mapper'
+import { deleteCopies, saveOne, markCopiesRead } from '@/lib/server/library-mutations'
+import { allBooks, queryBooks } from '@/lib/server/library-query'
+import { dateKey } from '@/lib/library-domain'
+import { validate } from '@/lib/server/library-validation'
 import { revalidatePath } from 'next/cache'
-import { BookCopy, BookWork, JoinedBook, ReadingSpan, ReadingSession, Quote, LoanRecord } from './types'
+import { createHash } from 'node:crypto'
+import { z } from 'zod'
+import type { Book, BookCopy, BookWork } from './types'
 
-export async function fetchFilteredBooksAction(params: {
-  search?: string
-  statusFilter?: string
-  volumeFilter?: string
-  genreFilter?: string
-  authorFilter?: string
-  yearFilter?: string
-  formatFilter?: string
-  purchasedFilter?: string
-  shelfFilter?: string
-  sortBy?: string
-  skip?: number
-  take?: number
-  viewMode?: string
-}): Promise<{ books?: JoinedBook[]; totalCount?: number; hasMore?: boolean; error?: string }> {
+export async function fetchFilteredBooksAction(
+  params: Record<string, unknown>
+) {
   await requireOwner()
-  const {
-    search,
-    statusFilter,
-    volumeFilter,
-    genreFilter,
-    authorFilter,
-    yearFilter,
-    formatFilter,
-    purchasedFilter,
-    shelfFilter,
-    sortBy = 'id',
-    skip = 0,
-    take = 20,
-    viewMode
-  } = params
-
   try {
-    const whereClause: Prisma.CopyWhereInput = {}
-    const workWhereClause: Prisma.WorkWhereInput = {}
-
-    // 1. Search
-    if (search) {
-      const s = search.toLowerCase()
-      whereClause.OR = [
-        { work: { title: { contains: s, mode: 'insensitive' } } },
-        { work: { author: { contains: s, mode: 'insensitive' } } },
-        { work: { genre: { contains: s, mode: 'insensitive' } } },
-        { work: { description: { contains: s, mode: 'insensitive' } } },
-        { work: { isbn: { contains: s, mode: 'insensitive' } } }
-      ]
-    }
-
-    // 2. Filters
-    if (statusFilter && statusFilter !== 'All') {
-      whereClause.status = statusFilter
-    }
-    if (volumeFilter && volumeFilter !== 'All') {
-      workWhereClause.volume = { startsWith: volumeFilter }
-    }
-    if (genreFilter && genreFilter !== 'All') {
-      workWhereClause.genre = genreFilter
-    }
-    if (authorFilter && authorFilter !== 'All') {
-      workWhereClause.author = authorFilter
-    }
-    if (yearFilter && yearFilter !== 'All') {
-      // Logic handled below
-    }
-
-    if (formatFilter && formatFilter !== 'All') {
-      whereClause.format = formatFilter
-    }
-    if (purchasedFilter === 'Purchased') {
-      whereClause.purchased = true
-    } else if (purchasedFilter === 'Not Purchased') {
-      whereClause.purchased = false
-    }
-    if (shelfFilter && shelfFilter !== 'All') {
-      whereClause.shelfLocation = shelfFilter
-    }
-
-    // Combine work where clauses if they exist
-    if (Object.keys(workWhereClause).length > 0) {
-      if (!whereClause.work) whereClause.work = {}
-      Object.assign(whereClause.work, workWhereClause)
-    }
-
-    // We need to use Raw query if sorting by numerical ID or Year, otherwise standard Prisma
-    // To keep it strictly Database side and fully featured, we can just use `findMany` for most,
-    // and process year filtering via Raw SQL if necessary. For simplicity, let's just do it directly.
-    let orderBy: Prisma.CopyOrderByWithRelationInput | undefined = undefined
-
-    if (sortBy === 'title') {
-      orderBy = { work: { title: 'asc' } }
-    } else if (sortBy === 'author') {
-      orderBy = { work: { author: 'asc' } }
-    } else if (sortBy === 'year') {
-      orderBy = { work: { launchYear: 'desc' } }
-    } else if (sortBy === 'id') {
-      // Numeric sort on string IDs like "w_1", "w_10", "w_100"
-      // We handle this via post-sort after fetching (see below)
-      orderBy = { id: 'asc' } // fallback; actual numeric sort done below
-    }
-
-    // Since we need to join Copy and Work
-    let copies: any[] = []
-    // If we have a grouped viewMode, we do grouping pagination in memory
-    const groupedModes = ['authors', 'collections', 'volumes', 'alphabetic']
-    const isGrouped = viewMode && groupedModes.includes(viewMode)
-
-    let hasMore = false
-
-    if (isGrouped || (yearFilter && yearFilter !== 'All') || sortBy === 'id') {
-      const allCopies = await prisma.copy.findMany({
-        where: whereClause,
-        include: { work: true }
-      })
-
-      let filteredAll = allCopies
-
-      // Apply Year Filter
-      if (yearFilter && yearFilter !== 'All') {
-        if (yearFilter === 'Pre-1900s')
-          filteredAll = filteredAll.filter(
-            c => parseInt(c.work.launchYear || '2000') < 1900
-          )
-        else if (yearFilter === '1900-1950')
-          filteredAll = filteredAll.filter(c => {
-            const y = parseInt(c.work.launchYear || '0')
-            return y >= 1900 && y < 1950
-          })
-        else if (yearFilter === '1950-2000')
-          filteredAll = filteredAll.filter(c => {
-            const y = parseInt(c.work.launchYear || '0')
-            return y >= 1950 && y < 2000
-          })
-        else if (yearFilter === '2000s')
-          filteredAll = filteredAll.filter(c => {
-            const y = parseInt(c.work.launchYear || '0')
-            return y >= 2000 && y < 2010
-          })
-        else if (yearFilter === '2010s')
-          filteredAll = filteredAll.filter(c => {
-            const y = parseInt(c.work.launchYear || '0')
-            return y >= 2010 && y < 2020
-          })
-        else if (yearFilter === '2020s')
-          filteredAll = filteredAll.filter(
-            c => parseInt(c.work.launchYear || '0') >= 2020
-          )
-      }
-
-      // Apply ID Sort
-      if (sortBy === 'id') {
-        filteredAll.sort((a, b) => {
-          const numA = parseInt(a.workId.replace(/\D/g, '')) || 0
-          const numB = parseInt(b.workId.replace(/\D/g, '')) || 0
-          return numA - numB
-        })
-      } else if (sortBy === 'title') {
-        filteredAll.sort((a, b) => (a.work.title || '').localeCompare(b.work.title || ''))
-      } else if (sortBy === 'author') {
-        filteredAll.sort((a, b) => (a.work.author || '').localeCompare(b.work.author || ''))
-      } else if (sortBy === 'year') {
-        filteredAll.sort((a, b) => parseInt(b.work.launchYear || '0') - parseInt(a.work.launchYear || '0'))
-      }
-
-      // Handle Grouped Pagination
-      if (isGrouped) {
-        const getGroupKey = (c: any) => {
-          if (viewMode === 'authors') return c.work.author || ''
-          if (viewMode === 'collections') return c.work.genre || ''
-          if (viewMode === 'volumes') return c.work.volume || 'Uncategorized'
-          if (viewMode === 'alphabetic') {
-            const t = c.work.title || ''
-            return /[A-Z]/i.test(t.charAt(0)) ? t.charAt(0).toUpperCase() : '#'
-          }
-          return ''
-        }
-
-        const groups = Array.from(new Set(filteredAll.map(getGroupKey)))
-        groups.sort() // Alphabetical sort for groups
-
-        const paginatedGroups = new Set(groups.slice(skip, skip + take))
-        hasMore = skip + take < groups.length
-
-        copies = filteredAll.filter(c => paginatedGroups.has(getGroupKey(c)))
-      } else {
-        // Normal Pagination
-        hasMore = skip + take < filteredAll.length
-        copies = filteredAll.slice(skip, skip + take)
-      }
-    } else {
-      // Normal database-level query for non-grouped, non-ID-sorted, non-year-filtered requests
-      copies = await prisma.copy.findMany({
-        where: whereClause,
-        include: { work: true },
-        orderBy,
-        skip,
-        take: take + 1 // Fetch 1 extra to check hasMore
-      })
-      hasMore = copies.length > take
-      if (hasMore) copies.pop()
-    }
-
-    // Map to JoinedBook format
-    const joinedBooks: JoinedBook[] = copies.map(copy => {
-      const work = copy.work
-      return {
-        id: copy.id,
-        workId: work?.id || '',
-        title: work?.title || '',
-        author: work?.author || '',
-        genre: work?.genre || '',
-        hours: work?.hours || '',
-        recommendedBy: work?.recommendedBy || '',
-        volume: work?.volume || '',
-        photoUrl: work?.photoUrl || '',
-        summary: work?.summary || '',
-        description: work?.description || '',
-        launchYear: work?.launchYear || '',
-        originalLanguage: work?.originalLanguage || '',
-        countryOfOrigin: work?.countryOfOrigin || '',
-        authorDescription: work?.authorDescription || '',
-        coverFile: work?.coverFile || '',
-        isbn: work?.isbn || '',
-        tags: (work?.tags as string[]) || [],
-        collections: (work?.collections as string[]) || [],
-        series: (work?.series as { name: string; number: number } | null) || null,
-        apiData: (work?.apiData as { googleId?: string; openLibraryId?: string }) || {},
-        readingSpans: (work?.readingSpans as unknown as ReadingSpan[]) || [],
-
-        goodreadsId: work?.goodreadsId || null,
-        authorLF: work?.authorLF || null,
-        additionalAuthors: work?.additionalAuthors || null,
-        publisher: work?.publisher || null,
-        yearPublished: work?.yearPublished || null,
-        originalPublicationYear: work?.originalPublicationYear || null,
-        ownedCopies: work?.ownedCopies || null,
-
-        format: copy.format || '',
-        condition: copy.condition || '',
-        shelfLocation: copy.shelfLocation || '',
-        purchased: Boolean(copy.purchased),
-        purchasePrice: copy.purchasePrice || 0,
-        investedAmount: copy.investedAmount || 0,
-        status: copy.status || '',
-        pdfPath: copy.pdfPath || '',
-        currentPage: copy.currentPage || 0,
-        totalPages: copy.totalPages || 0,
-        lastReadTimestamp: copy.lastReadTimestamp || '',
-        readingSessions: (copy.readingSessions as unknown as ReadingSession[]) || [],
-        rating: copy.rating || 0,
-        quotes: (copy.quotes as unknown as Quote[]) || [],
-        amazonLink: copy.amazonLink || '',
-        loans: (copy.loans as unknown as LoanRecord[]) || [],
-        
-        dateRead: copy.dateRead || null,
-        dateAdded: copy.dateAdded || null,
-        bookshelves: copy.bookshelves || null,
-        bookshelvesWithPositions: copy.bookshelvesWithPositions || null,
-        exclusiveShelf: copy.exclusiveShelf || null,
-        myReview: copy.myReview || null,
-        spoiler: copy.spoiler || null,
-        privateNotes: copy.privateNotes || null,
-        readCount: copy.readCount || null,
-
-        givenTo: (copy.loans as unknown as LoanRecord[])?.[0]?.borrowerName || '',
-        loanDate: (copy.loans as unknown as LoanRecord[])?.[0]?.dateLent || '',
-        shelfRow: copy.shelfLocation || '',
-        readingStartDate: (work?.readingSpans as unknown as ReadingSpan[])?.[0]?.startDate || '',
-        readingEndDate: (work?.readingSpans as unknown as ReadingSpan[])?.[0]?.endDate || ''
-      }
-    })
-
-    let totalCount = 0
-    if (yearFilter && yearFilter !== 'All') {
-      const allCopies = await prisma.copy.findMany({
-        where: whereClause,
-        include: { work: true }
-      })
-      let filteredAll = allCopies
-      if (yearFilter === 'Pre-1900s')
-        filteredAll = filteredAll.filter(
-          c => parseInt(c.work.launchYear || '2000') < 1900
-        )
-      else if (yearFilter === '1900-1950')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 1900 && y < 1950
-        })
-      else if (yearFilter === '1950-2000')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 1950 && y < 2000
-        })
-      else if (yearFilter === '2000s')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 2000 && y < 2010
-        })
-      else if (yearFilter === '2010s')
-        filteredAll = filteredAll.filter(c => {
-          const y = parseInt(c.work.launchYear || '0')
-          return y >= 2010 && y < 2020
-        })
-      else if (yearFilter === '2020s')
-        filteredAll = filteredAll.filter(
-          c => parseInt(c.work.launchYear || '0') >= 2020
-        )
-      totalCount = filteredAll.length
-    } else {
-      totalCount = await prisma.copy.count({ where: whereClause })
-    }
-
-    return { books: joinedBooks, totalCount, hasMore, error: undefined }
+    return { ...(await queryBooks(params)), error: undefined, status: 200 }
   } catch (error) {
-    console.error('Failed to fetch filtered books:', error)
-    return { books: undefined, totalCount: undefined, hasMore: undefined, error: 'Failed to fetch data' }
+    return {
+      books: undefined,
+      totalCount: undefined,
+      hasMore: undefined,
+      nextCursor: null,
+      ...actionError(error, 'Unable to load the library. Please retry.')
+    }
   }
 }
 
-export async function saveLibraryAction(works: BookWork[], copies: BookCopy[]) {
+export async function fetchBookAction(id: string) {
+  await requireOwner()
+  const copy = await databaseRead(() => prisma.copy.findUnique({
+    where: { id },
+    include: bookInclude
+  }))
+  if (!copy) throw new HttpError(404, 'This copy no longer exists.')
+  return toBook(copy)
+}
+
+export async function fetchLibraryOverviewAction() {
   await requireOwner()
   try {
-    const mappedWorks = works.map((w: BookWork) => ({
-      ...w,
-      launchYear: w.launchYear ? String(w.launchYear) : '',
-      volume: w.volume ? String(w.volume) : ''
+    const [books, settings] = await Promise.all([
+      allBooks(),
+      prisma.librarySettings.findUnique({ where: { id: 'owner' } })
+    ])
+    const overview = books.map(book => ({
+      ...book,
+      description: '',
+      authorDescription: '',
+      summary: '',
+      quotes: [],
+      myReview: null,
+      privateNotes: null
     }))
-
-    const mappedCopies = copies.map((c: BookCopy) => ({
-      ...c,
-      format: c.format ? String(c.format) : '',
-      condition: c.condition ? String(c.condition) : '',
-      shelfLocation: c.shelfLocation ? String(c.shelfLocation) : '',
-      purchased: Boolean(c.purchased),
-      purchasePrice: c.purchasePrice ? Number(c.purchasePrice) : null,
-      investedAmount: c.investedAmount ? Number(c.investedAmount) : null,
-      status: c.status ? String(c.status) : '',
-      pdfPath: c.pdfPath ? String(c.pdfPath) : '',
-      currentPage: c.currentPage ? Number(c.currentPage) : null,
-      totalPages: c.totalPages ? Number(c.totalPages) : null,
-      lastReadTimestamp: c.lastReadTimestamp ? String(c.lastReadTimestamp) : '',
-      rating: c.rating ? Number(c.rating) : null,
-      amazonLink: c.amazonLink ? String(c.amazonLink) : ''
-    }))
-
-    await prisma.$transaction(async tx => {
-      for (const w of mappedWorks) {
-        await tx.work.upsert({
-          where: { id: w.id },
-          update: w as any,
-          create: w as any,
-        })
-      }
-      for (const c of mappedCopies) {
-        await tx.copy.upsert({
-          where: { id: c.id },
-          update: c as any,
-          create: c as any,
-        })
-      }
-    })
-
-    revalidatePath('/')
-    return { success: true }
+    return {
+      books: overview,
+      annualGoal: settings?.annualGoal || 50,
+      error: undefined
+    }
   } catch (error) {
-    console.error('Failed to save library via Server Action:', error)
-    return { error: 'Failed to save data' }
+    return {
+      books: undefined,
+      annualGoal: undefined,
+      ...actionError(error, 'Unable to load library totals. Please retry.')
+    }
+  }
+}
+
+export async function saveBookAction(book: unknown) {
+  await requireOwner()
+  try {
+    const saved = await saveOne(book)
+    revalidatePath('/')
+    return { book: saved, error: undefined }
+  } catch (error) {
+    return {
+      book: undefined,
+      ...actionError(
+        error,
+        'Unable to save this book. Your draft has been kept.'
+      )
+    }
+  }
+}
+
+export async function deleteCopiesAction(input: unknown) {
+  await requireOwner()
+  try {
+    const ids = validate(
+      z.array(z.string().min(1).max(180)).min(1).max(100),
+      input
+    )
+    await deleteCopies([...new Set(ids)])
+    revalidatePath('/')
+    return { success: true, error: undefined }
+  } catch (error) {
+    return {
+      success: false,
+      ...actionError(error, 'Unable to delete the selected copies.')
+    }
+  }
+}
+
+function importCopyId(value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, 'The book record is invalid.')
+  const source = value as Partial<Book>
+  if (source.id) {
+    if (typeof source.id !== 'string' || source.id.length > 180) throw new HttpError(400, 'The copy identifier is invalid.')
+    return source.id
+  }
+  const identity = source.goodreadsId || source.isbn?.replace(/[-\s]/g, '') || `${source.title?.trim().toLowerCase()}|${source.author?.trim().toLowerCase()}`
+  if (typeof identity !== 'string') throw new HttpError(400, 'The import identity is invalid.')
+  return `c_import_${createHash('sha256').update(identity).digest('hex')}`
+}
+
+export async function importBookBatchAction(input: unknown) {
+  await requireOwner()
+  const rows = validate(z.array(z.unknown()).min(1).max(25), input)
+  const results: {
+    index: number
+    state: 'created' | 'skipped' | 'error'
+    error?: string
+  }[] = []
+  const ids = rows.flatMap(row => { try { return [importCopyId(row)] } catch { return [] } })
+  const existingIds = new Set((await databaseRead(() => prisma.copy.findMany({
+    where: { id: { in: ids } }, select: { id: true }
+  }))).map(copy => copy.id))
+  for (const [index, inputBook] of rows.entries()) {
+    try {
+      if (!inputBook || typeof inputBook !== 'object')
+        throw new HttpError(400, 'The book record is invalid.')
+      const source = inputBook as Partial<Book>
+      const id = importCopyId(inputBook)
+      if (existingIds.has(id)) {
+        results.push({ index, state: 'skipped' })
+        continue
+      }
+      const matchedWork =
+        !source.workId && source.title && source.author
+          ? await prisma.work.findFirst({
+              where: {
+                title: { equals: source.title.trim(), mode: 'insensitive' },
+                author: { equals: source.author.trim(), mode: 'insensitive' }
+              },
+              select: { id: true }
+            })
+          : null
+      const workDigest = createHash('sha256')
+        .update(
+          `${source.title?.trim().toLowerCase()}|${source.author?.trim().toLowerCase()}`
+        )
+        .digest('hex')
+      await saveOne(
+        {
+          ...source,
+          id,
+          workId: source.workId || matchedWork?.id || `w_import_${workDigest}`
+        },
+        { importing: true }
+      )
+      existingIds.add(id)
+      results.push({ index, state: 'created' })
+    } catch (error) {
+      results.push({
+        index,
+        state: 'error',
+        error: actionError(error, 'Unable to import this record.').error
+      })
+    }
+  }
+  if (results.some(result => result.state === 'created')) revalidatePath('/')
+  return results
+}
+
+// Compatibility entry points remain authenticated; callers should use focused mutations.
+export async function saveLibraryAction(
+  _works: BookWork[],
+  _copies: BookCopy[]
+) {
+  await requireOwner()
+  void _works; void _copies
+  return {
+    error:
+      'Whole-library saves are no longer supported. Save the selected book instead.'
   }
 }
 
 export async function importBooksAction(works: BookWork[], copies: BookCopy[]) {
   await requireOwner()
+  const workMap = new Map(works.map(work => [work.id, work]))
+  const results = await importBookBatchAction(
+    copies.map(copy => ({ ...workMap.get(copy.workId), ...copy }))
+  )
+  return results.some(result => result.state === 'error')
+    ? { error: 'Some import records failed validation.', results }
+    : { success: true, results }
+}
+
+export async function saveAnnualGoalAction(input: unknown) {
+  await requireOwner()
+  const annualGoal = validate(z.number().int().min(1).max(10000), input)
+  await prisma.librarySettings.upsert({
+    where: { id: 'owner' },
+    create: { id: 'owner', annualGoal },
+    update: { annualGoal }
+  })
+  revalidatePath('/')
+  return annualGoal
+}
+
+export async function markCopiesReadAction(input: unknown) {
+  await requireOwner()
   try {
-    const mappedWorks = works.map((w: BookWork) => ({
-      ...w,
-      launchYear: w.launchYear ? String(w.launchYear) : '',
-      volume: w.volume ? String(w.volume) : ''
-    }))
-
-    const mappedCopies = copies.map((c: BookCopy) => ({
-      ...c,
-      format: c.format ? String(c.format) : '',
-      condition: c.condition ? String(c.condition) : '',
-      shelfLocation: c.shelfLocation ? String(c.shelfLocation) : '',
-      purchased: Boolean(c.purchased),
-      purchasePrice: c.purchasePrice ? Number(c.purchasePrice) : null,
-      investedAmount: c.investedAmount ? Number(c.investedAmount) : null,
-      status: c.status ? String(c.status) : '',
-      pdfPath: c.pdfPath ? String(c.pdfPath) : '',
-      currentPage: c.currentPage ? Number(c.currentPage) : null,
-      totalPages: c.totalPages ? Number(c.totalPages) : null,
-      lastReadTimestamp: c.lastReadTimestamp ? String(c.lastReadTimestamp) : '',
-      rating: c.rating ? Number(c.rating) : null,
-      amazonLink: c.amazonLink ? String(c.amazonLink) : ''
-    }))
-
-    await prisma.$transaction(async tx => {
-      for (const w of mappedWorks) {
-        await tx.work.upsert({
-          where: { id: w.id },
-          update: w as any,
-          create: w as any,
-        })
-      }
-      for (const c of mappedCopies) {
-        await tx.copy.upsert({
-          where: { id: c.id },
-          update: c as any,
-          create: c as any,
-        })
-      }
-    })
-
+    const { ids, day } = validate(z.object({ ids: z.array(z.string().min(1).max(180)).min(1).max(100), day: z.string().refine(value => !!dateKey(value)) }), input)
+    const result = await markCopiesRead([...new Set(ids)], day)
     revalidatePath('/')
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to import books:', error)
-    return { error: 'Failed to import data' }
-  }
+    return { ...result, success: true, error: undefined }
+  } catch (error) { return { processed: 0, changed: 0, success: false, ...actionError(error, 'Unable to mark the selected copies read.') } }
 }

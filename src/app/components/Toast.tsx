@@ -60,7 +60,7 @@ export default function ToastProvider() {
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2 items-center pointer-events-none">
       {toasts.map(t => (
         <div
-          key={t.id}
+          key={t.id} role={t.type === 'error' ? 'alert' : 'status'} aria-live={t.type === 'error' ? 'assertive' : 'polite'}
           className={`animate-slide-up pointer-events-auto flex items-center gap-3 bg-slate-900 dark:bg-slate-950 border ${borders[t.type]} text-slate-100 px-5 py-3.5 rounded-2xl shadow-2xl shadow-black/40 text-sm font-medium backdrop-blur-md min-w-[220px] max-w-xs`}
         >
           {icons[t.type]}

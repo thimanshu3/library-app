@@ -29,9 +29,10 @@ async function LibraryContent({
   const purchasedFilter = typeof params.purchasedFilter === 'string' ? params.purchasedFilter : undefined;
   const shelfFilter = typeof params.shelfFilter === 'string' ? params.shelfFilter : undefined;
   const sortBy = typeof params.sortBy === 'string' ? params.sortBy : undefined;
-  const skip = typeof params.skip === 'string' ? parseInt(params.skip, 10) : 0;
+  const skip = typeof params.skip === 'string' ? Number(params.skip) : 0;
+  const viewMode = typeof params.viewMode === 'string' ? params.viewMode : 'grid';
   
-  const { books = [], totalCount = 0 } = await fetchFilteredBooksAction({
+  const result = await fetchFilteredBooksAction({
     search,
     statusFilter,
     volumeFilter,
@@ -43,13 +44,17 @@ async function LibraryContent({
     shelfFilter,
     sortBy,
     skip,
-    take: 20
+    take: 20,
+    viewMode
   });
+  if (result.error || !result.books) throw new Error(result.error || 'Unable to load the library.');
 
   return (
     <LibraryClient 
-      initialBooks={books} 
-      initialTotalCount={totalCount} 
+      initialBooks={result.books}
+      initialTotalCount={result.totalCount || 0}
+      initialHasMore={result.hasMore || false}
+      initialNextCursor={result.nextCursor}
     />
   );
 }

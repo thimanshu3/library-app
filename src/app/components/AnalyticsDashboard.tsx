@@ -1,5 +1,8 @@
 'use client'
 
+import { completionDates } from '@/lib/library-domain'
+import { saveAnnualGoalAction } from '../actions'
+import { useTheme } from '../hooks/use-theme'
 import { Book } from '../types'
 import ReadingHeatmap from './ReadingHeatmap'
 import { useState } from 'react'
@@ -54,19 +57,26 @@ function KpiCard({ label, value, sub, color = '', icon }: KpiCardProps) {
   )
 }
 
-export default function AnalyticsDashboard({ books }: { books: Book[] }) {
+export default function AnalyticsDashboard({ books, annualGoal, onGoalChange }: { books: Book[]; annualGoal: number; onGoalChange: (goal: number) => void }) {
+  const isDark = useTheme()
+  const [goalDraft, setGoalDraft] = useState(annualGoal)
+  const [goalError, setGoalError] = useState('')
+  const [savingGoal, setSavingGoal] = useState(false)
+  async function saveGoal() { setSavingGoal(true); setGoalError(''); try { await saveAnnualGoalAction(goalDraft); onGoalChange(goalDraft) } catch (error) { setGoalError(error instanceof Error ? error.message : 'Unable to save goal.') } finally { setSavingGoal(false) } }
   const [showWrapped, setShowWrapped] = useState(false)
 
   const readBooks = books.filter(b => b.status === 'Read')
   const reading = books.filter(b => b.status === 'Reading')
-  const owned = books.filter(b => b.purchased)
-  const totalInvestment = books.reduce((s, b) => s + (b.purchasePrice || 0), 0)
+  const owned = books.filter(b => ['Purchased', 'Gifted'].includes(b.ownership || (b.purchased ? 'Purchased' : 'Gifted')))
+  const investment = new Map<string, number>()
+  for (const book of books) investment.set(book.currency || 'INR', (investment.get(book.currency || 'INR') || 0) + book.investedAmount)
+  const totalInvestment = [...investment].map(([currency, amount]) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)).join(' · ')
   const pct = books.length > 0 ? Math.round((readBooks.length / books.length) * 100) : 0
 
   // Yearly Goal setup
   const currentYear = new Date().getFullYear()
-  const yearlyGoal = 50
-  const readThisYear = books.filter(b => b.status === 'Read' && b.readingEndDate && b.readingEndDate.startsWith(currentYear.toString())).length
+  const yearlyGoal = annualGoal
+  const readThisYear = books.flatMap(completionDates).filter(date => date.startsWith(String(currentYear))).length
   const goalProgress = Math.min(100, Math.round((readThisYear / yearlyGoal) * 100))
 
   // Genre distribution
@@ -136,7 +146,7 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
           </div>
           <p className="text-sm font-bold text-accent">{goalProgress}% Complete</p>
         </div>
-        
+
         <div
           className="lg:col-span-2 p-6 rounded-[32px]"
           style={{ background: 'var(--surface-warm)', border: '1px solid var(--outline-variant)' }}
@@ -167,13 +177,18 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>}
         />
         <KpiCard
-          label="Est. Investment"
-          value={`$${Math.round(totalInvestment).toLocaleString()}`}
+          label="Recorded investment"
+          value={totalInvestment}
           color="text-amber-600 dark:text-amber-400"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
         />
       </div>
 
+      <form onSubmit={event => { event.preventDefault(); void saveGoal() }} className="flex flex-wrap items-center gap-3">
+        <label>Annual completion goal <input aria-label="Annual completion goal" type="number" min="1" max="10000" value={goalDraft} onChange={event => setGoalDraft(Number(event.target.value))} className="rounded-xl p-2 w-24 bg-[var(--surface-2)]" /></label>
+        <button disabled={savingGoal} className="rounded-xl px-4 py-2 bg-accent text-white">{savingGoal ? 'Saving…' : 'Save goal'}</button>
+        {goalError && <span role="alert" className="text-red-600">{goalError}</span>}
+      </form>
       {/* Progress bar */}
       <div
         className="p-6 rounded-[24px] shadow-sm"
@@ -335,10 +350,10 @@ export default function AnalyticsDashboard({ books }: { books: Book[] }) {
       </div>
 
       {showWrapped && (
-        <ReadingWrappedModal 
-          books={books} 
-          isDark={typeof document !== 'undefined' && document.documentElement.classList.contains('dark')} 
-          onClose={() => setShowWrapped(false)} 
+        <ReadingWrappedModal
+          books={books}
+          isDark={isDark}
+          onClose={() => setShowWrapped(false)}
         />
       )}
     </div>

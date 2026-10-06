@@ -1,23 +1,20 @@
 'use client'
-import { useQueryStates, parseAsString, parseAsInteger } from 'nuqs';
-/* eslint-disable @next/next/no-img-element */
+import Image from 'next/image'
+import BookCover from './components/BookCover'
+import BookThumbnailButton from './components/BookThumbnailButton'
 
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import AddBookModal from './components/AddBookModal'
-import AnalyticsDashboard from './components/AnalyticsDashboard'
 import BookCard from './components/BookCard'
-import BookViewModal from './components/BookViewModal'
 import DashboardStats from './components/DashboardStats'
-import EditModal from './components/EditModal'
 
 import dynamic from 'next/dynamic'
-import Papa from 'papaparse'
-import {
-  fetchFilteredBooksAction,
-  importBooksAction,
-  saveLibraryAction
-} from './actions'
+import { deleteCopiesAction, markCopiesReadAction, saveBookAction } from './actions'
+import { replayReading } from './hooks/use-reading-session'
+import { useTheme, setTheme } from './hooks/use-theme'
+import type { ViewMode } from './components/LibraryShared'
+import { useLibrary, readApi } from './hooks/use-library'
+import { localToday, attachmentType } from '@/lib/library-domain'
 import {
   NEUTRAL_RGB,
   chipShadow,
@@ -27,10 +24,16 @@ import {
   raised,
   statusTheme
 } from './clay'
-import LoanTracker from './components/LoanTracker'
 import MobileFilterSheet from './components/MobileFilterSheet'
 import ToastProvider, { toast } from './components/Toast'
 import SignOutButton from './components/SignOutButton'
+
+const AddBookModal = dynamic(() => import('./components/AddBookModal'), { ssr: false })
+const AnalyticsDashboard = dynamic(() => import('./components/AnalyticsDashboard'))
+const BookViewModal = dynamic(() => import('./components/BookViewModal'), { ssr: false })
+const EditModal = dynamic(() => import('./components/EditModal'), { ssr: false })
+const LoanTracker = dynamic(() => import('./components/LoanTracker'))
+const ImportLibraryModal = dynamic(() => import('./components/ImportLibraryModal'), { ssr: false })
 
 const PdfReaderModal = dynamic(() => import('./components/PdfReaderModal'), {
   ssr: false
@@ -40,21 +43,13 @@ const EpubReaderModal = dynamic(() => import('./components/EpubReaderModal'), {
 })
 
 import BookListCard from './components/BookList'
-import {
-  Book,
-  BookCopy,
-  BookWork,
-  LoanRecord,
-  Quote,
-  ReadingSession,
-  ReadingSpan
-} from './types'
+import type { Book } from './types'
 
 // ─── Types & static config ────────────────────────────────────────────────────
 
 import {
-  ViewMode,
   Option,
+  mergeOptions,
   viewModes,
   sortOptions,
   genreOptions,
@@ -69,43 +64,23 @@ import {
   Icon,
   ClayButton,
   ClaySelect,
-  StatusChip,
   SectionHeader,
 } from './components/LibraryShared';
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function LibraryClient({
-  initialBooks,
-  initialTotalCount
-}: {
-  initialBooks: Book[]
-  initialTotalCount: number
+export default function LibraryClient({ initialBooks, initialTotalCount, initialHasMore, initialNextCursor }: {
+  initialBooks: Book[]; initialTotalCount: number; initialHasMore: boolean; initialNextCursor: string | null
 }) {
-  const [books, setBooks] = useState<Book[]>(initialBooks)
-  const [totalCount, setTotalCount] = useState(initialTotalCount)
-
-  const [hasMore, setHasMore] = useState(initialBooks.length === 20)
-  const [loading, setLoading] = useState(false)
-
-    const [filters, setFilters] = useQueryStates({
-    search: parseAsString.withDefault(''),
-    statusFilter: parseAsString.withDefault('All'),
-    volumeFilter: parseAsString.withDefault('All'),
-    genreFilter: parseAsString.withDefault('All'),
-    authorFilter: parseAsString.withDefault('All'),
-    yearFilter: parseAsString.withDefault('All'),
-    formatFilter: parseAsString.withDefault('All'),
-    purchasedFilter: parseAsString.withDefault('All'),
-    shelfFilter: parseAsString.withDefault('All'),
-    sortBy: parseAsString.withDefault('id'),
-    skip: parseAsInteger.withDefault(0)
-  }, { history: 'push' });
-
-  const { search, statusFilter, volumeFilter, genreFilter, authorFilter, yearFilter, formatFilter, purchasedFilter, shelfFilter, sortBy, skip } = filters;
-
-
+  const { filters, setFilters, viewMode, setViewMode, books, allBooks, totalCount, hasMore, loading,
+    overviewLoading, error: loadError, annualGoal, setAnnualGoal, refresh, refreshOverview, observerTarget, commit, getBook } = useLibrary({
+    books: initialBooks, totalCount: initialTotalCount, hasMore: initialHasMore, nextCursor: initialNextCursor
+  })
+  const { search, statusFilter, volumeFilter, genreFilter, authorFilter, yearFilter, formatFilter, purchasedFilter, shelfFilter, sortBy } = filters
+  const [mutating, setMutating] = useState(false)
+  const mutationLock = useRef(false)
+  const modalRequest = useRef(0)
+  const [importFile, setImportFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [isBatchMode, setIsBatchMode] = useState(false)
   const [selectedBooks, setSelectedBooks] = useState<string[]>([])
 
@@ -114,42 +89,10 @@ export default function LibraryClient({
   const [viewingBook, setViewingBook] = useState<Book | null>(null)
   const [readingPdfBook, setReadingPdfBook] = useState<Book | null>(null)
 
-  const [isDark, setIsDark] = useState(false)
+  const isDark = useTheme()
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
-
-  // ── Theme ──────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const stored = localStorage.getItem('theme')
-    const dark = stored
-      ? stored === 'dark'
-      : document.documentElement.classList.contains('dark')
-    setIsDark(dark)
-    document.documentElement.classList.toggle('dark', dark)
-  }, [])
-
-  // ── Wikipedia async enrichment ─────────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (!detail) return
-      setEditingBook(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          ...(detail.authorDescription && !prev.authorDescription
-            ? { authorDescription: detail.authorDescription }
-            : {}),
-          ...(detail.description && !prev.description
-            ? { description: detail.description }
-            : {})
-        }
-      })
-    }
-    window.addEventListener('wiki-enrichment', handler)
-    return () => window.removeEventListener('wiki-enrichment', handler)
-  }, [])
 
   // ── Close export menu when clicking outside ────────────────────────────────
   useEffect(() => {
@@ -166,563 +109,131 @@ export default function LibraryClient({
     return () => document.removeEventListener('mousedown', handler)
   }, [exportMenuOpen])
 
-  const toggleTheme = () => {
-    const next = !isDark
-    setIsDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
-  }
+  useEffect(() => {
+    const saved = (event: Event) => { const book = (event as CustomEvent<Book>).detail; commit(book); setViewingBook(previous => previous?.id === book.id ? book : previous) }
+    const replay = () => { void replayReading() }
+    window.addEventListener('reading-saved', saved)
+    window.addEventListener('online', replay)
+    replay()
+    return () => { window.removeEventListener('reading-saved', saved); window.removeEventListener('online', replay) }
+  }, [commit])
 
-  // ── Data ───────────────────────────────────────────────────────────────────
-  async function saveBooks(updated: Book[]) {
+  const openImport = () => { fileInputRef.current?.click(); setExportMenuOpen(false) }
+  const toggleTheme = () => setTheme(!isDark)
+
+  async function handleSaveBook(updated: Book) {
+    if (mutationLock.current) throw new Error('A save is already in progress.')
+    mutationLock.current = true; setMutating(true)
     try {
-      // Split into works and copies
-      const worksMap = new Map<string, BookWork>()
-      const copies: BookCopy[] = []
-
-      updated.forEach(book => {
-        if (!worksMap.has(book.workId)) {
-          worksMap.set(book.workId, {
-            id: book.workId,
-            title: book.title,
-            author: book.author,
-            genre: book.genre,
-            hours: book.hours,
-            recommendedBy: book.recommendedBy,
-            volume: book.volume,
-            photoUrl: book.photoUrl,
-            summary: book.summary,
-            description: book.description,
-            launchYear: book.launchYear,
-            originalLanguage: book.originalLanguage,
-            countryOfOrigin: book.countryOfOrigin,
-            authorDescription: book.authorDescription,
-            coverFile: book.coverFile,
-            isbn: book.isbn,
-            tags: book.tags || [],
-            collections: book.collections || [],
-            series: book.series,
-            apiData: book.apiData || {},
-            readingSpans: book.readingSpans || [],
-            // Goodreads fields
-            goodreadsId: book.goodreadsId,
-            authorLF: book.authorLF,
-            additionalAuthors: book.additionalAuthors,
-            publisher: book.publisher,
-            yearPublished: book.yearPublished,
-            originalPublicationYear: book.originalPublicationYear,
-            ownedCopies: book.ownedCopies
-          })
-        }
-
-        copies.push({
-          id: book.id as string,
-          workId: book.workId,
-          format: book.format,
-          condition: book.condition,
-          shelfLocation: book.shelfLocation || book.shelfRow || '',
-          purchased: book.purchased,
-          purchasePrice: book.purchasePrice,
-          investedAmount: book.investedAmount,
-          status: book.status,
-          pdfPath: book.pdfPath,
-          currentPage: book.currentPage,
-          totalPages: book.totalPages,
-          lastReadTimestamp: book.lastReadTimestamp,
-          readingSessions: book.readingSessions || [],
-          rating: book.rating,
-          quotes: book.quotes || [],
-          amazonLink: book.amazonLink,
-          loans: book.loans || [],
-          // Goodreads fields
-          dateRead: book.dateRead,
-          dateAdded: book.dateAdded,
-          bookshelves: book.bookshelves,
-          bookshelvesWithPositions: book.bookshelvesWithPositions,
-          exclusiveShelf: book.exclusiveShelf,
-          myReview: book.myReview,
-          spoiler: book.spoiler,
-          privateNotes: book.privateNotes,
-          readCount: book.readCount
-        })
-      })
-
-      const res = await saveLibraryAction(Array.from(worksMap.values()), copies)
-      if (res.error) throw new Error(res.error)
-    } catch {
-      toast('Failed to save changes', 'error')
-    }
+      const result = await saveBookAction({ ...updated, ...(updated.id ? { readingSessions: [] } : {}) })
+      if (result.error || !result.book) throw new Error(result.error || 'Unable to save this book.')
+      commit(result.book)
+      void refreshOverview()
+      if (!updated.id) refresh()
+      setEditingBook(null)
+      toast(updated.id ? 'Changes saved' : 'Book added to library', 'success')
+    } finally { mutationLock.current = false; setMutating(false) }
   }
-
-  // ── Filter & Sort ──────────────────────────────────────────────────────────
-
-  const initialMount = useRef(true)
-
-  useEffect(() => {
-    if (initialMount.current) {
-      initialMount.current = false
-      return
-    }
-
-    // Skip server fetch for views that show local-only data
-    const localOnlyViews: ViewMode[] = ['analytics', 'loans', 'wishlist']
-    if (localOnlyViews.includes(viewMode)) {
-      setLoading(false)
-      return
-    }
-
-    let active = true
-    setLoading(true)
-
-    fetchFilteredBooksAction({
-      search,
-      statusFilter,
-      volumeFilter,
-      genreFilter,
-      authorFilter,
-      yearFilter,
-      formatFilter,
-      purchasedFilter,
-      shelfFilter,
-      sortBy,
-      skip: 0,
-      take: 20,
-      viewMode
-    }).then(res => {
-      if (!active) return
-      if (res.books) {
-        setBooks(res.books as Book[])
-        setTotalCount(res.totalCount || 0)
-        setFilters({ skip: 0 });
-        setHasMore(res.hasMore ?? res.books.length === 20)
+  const openEdit = useCallback(async (book: Book) => {
+    const token = ++modalRequest.current
+    setViewingBook(null)
+    try { const fresh = await getBook(book.id); if (modalRequest.current === token) setEditingBook(fresh) } catch (error) { toast(error instanceof Error ? error.message : 'Unable to open this book.', 'error') }
+  }, [getBook])
+  const openView = useCallback(async (book: Book) => {
+    const token = ++modalRequest.current
+    try { const fresh = await getBook(book.id); if (modalRequest.current === token) setViewingBook(fresh) } catch (error) { toast(error instanceof Error ? error.message : 'Unable to open this book.', 'error') }
+  }, [getBook])
+  const handleAddBook = () => setIsAddingBook(true)
+  const handleManualAdd = () => { setIsAddingBook(false); setEditingBook(blankBook()) }
+  async function handleSelectSearchedBook(bookData: Partial<Book>) {
+    try {
+      const library = allBooks.length || !overviewLoading ? allBooks : (await readApi<{ books: Book[] }>('/api/library/overview')).books
+      const match = library.find(book => (bookData.isbn && book.isbn === bookData.isbn) ||
+        (book.title.trim().toLowerCase() === bookData.title?.trim().toLowerCase() && book.author.trim().toLowerCase() === bookData.author?.trim().toLowerCase()))
+      let prefill = { ...bookData }
+      if (match && window.confirm(`This work is already in your library. Add another copy of "${match.title}"?`)) {
+        const original = await getBook(match.id)
+        const shared = ['workId','workRevision','title','author','genre','hours','recommendedBy','volume','photoUrl','summary','description','launchYear','originalLanguage','countryOfOrigin','authorDescription','coverFile','tags','collections','series','apiData'] as const
+        prefill = { ...prefill, ...Object.fromEntries(shared.map(key => [key, original[key]])) }
       }
-      setLoading(false)
-    })
-
-    return () => {
-      active = false
-    }
-  }, [
-    search,
-    statusFilter,
-    volumeFilter,
-    genreFilter,
-    authorFilter,
-    yearFilter,
-    formatFilter,
-    purchasedFilter,
-    shelfFilter,
-    sortBy,
-    viewMode
-  ])
-
-  const loadMore = useCallback(async () => {
-    if (loading || !hasMore) return
-    setLoading(true)
-    const res = await fetchFilteredBooksAction({
-      search,
-      statusFilter,
-      volumeFilter,
-      genreFilter,
-      authorFilter,
-      yearFilter,
-      formatFilter,
-      purchasedFilter,
-      shelfFilter,
-      sortBy,
-      skip,
-      take: 20,
-      viewMode
-    })
-    if (res.books) {
-      setBooks(prev => {
-        const existingIds = new Set(prev.map(b => b.id))
-        const newBooks = (res.books as Book[]).filter(b => !existingIds.has(b.id))
-        return [...prev, ...newBooks]
-      })
-      setFilters({ skip: skip + 20 });
-      setHasMore(res.hasMore ?? res.books.length === 20);
-    }
-    setLoading(false)
-  }, [
-    loading,
-    hasMore,
-    search,
-    statusFilter,
-    volumeFilter,
-    genreFilter,
-    authorFilter,
-    yearFilter,
-    formatFilter,
-    purchasedFilter,
-    shelfFilter,
-    sortBy,
-    skip
-  ])
-
-  const observerTarget = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadMore()
-        }
-      },
-      { threshold: 1.0 }
-    )
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
-    }
-    return () => {
-      observer.disconnect()
-    }
-  }, [loadMore, hasMore, loading])
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleSaveBook = async (updated: Book) => {
-    const finalBook = { ...updated }
-
-    if (finalBook.photoUrl) {
-      finalBook.coverFile = finalBook.photoUrl
-    }
-
-    let updatedBooks: Book[]
-    if (finalBook.id === '') {
-      const newId = `c_${Date.now()}`
-      finalBook.id = newId
-      if (!finalBook.workId) {
-        finalBook.workId = `w_${Date.now()}`
+      setIsAddingBook(false)
+      setEditingBook({ ...blankBook(), ...prefill, id: '', enrichmentKey: `${bookData.title}|${bookData.author}|${bookData.isbn || ''}` })
+    } catch (error) { toast(error instanceof Error ? error.message : 'Unable to check duplicate books.', 'error') }
+  }
+  const handleBatchSelect = (id: string) => setSelectedBooks(previous => previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id])
+  async function handleBatchMarkRead() {
+    if (mutationLock.current || !selectedBooks.length) return
+    mutationLock.current = true; setMutating(true)
+    let processed = 0; let changed = 0
+    const remaining = [...selectedBooks]
+    try {
+      while (remaining.length) {
+        const batch = remaining.slice(0, 100)
+        const result = await markCopiesReadAction({ ids: batch, day: localToday() })
+        if (!result.success) throw new Error(result.error)
+        processed += result.processed; changed += result.changed
+        remaining.splice(0, batch.length)
       }
-      updatedBooks = [finalBook, ...books]
-      toast('Book added to library', 'success')
-    } else {
-      updatedBooks = books.map(b => (b.id === finalBook.id ? finalBook : b))
-      toast('Changes saved', 'success')
-    }
-    setBooks(updatedBooks)
-    saveBooks(updatedBooks)
-    setEditingBook(null)
+      toast(`${processed} copies processed; ${changed} marked read`, 'success')
+    } catch (error) { toast(`${processed} copies processed. ${error instanceof Error ? error.message : 'Please retry the remaining selection.'}`, 'error') }
+    finally { setSelectedBooks(remaining); setIsBatchMode(remaining.length > 0); refresh(); void refreshOverview(); mutationLock.current = false; setMutating(false) }
   }
-
-  const handleAddBook = () => {
-    setIsAddingBook(true)
-  }
-
-  const handleManualAdd = () => {
-    setIsAddingBook(false)
-    setEditingBook(blankBook())
-  }
-
-  const handleSelectSearchedBook = (bookData: Partial<Book>) => {
-    setIsAddingBook(false)
-
-    let workIdToUse = ''
-    let prefilledData = { ...bookData }
-
-    const duplicate = books.find(
-      b =>
-        (bookData.isbn && b.isbn === bookData.isbn) ||
-        (b.title?.toLowerCase() === bookData.title?.toLowerCase() &&
-          b.author?.toLowerCase() === bookData.author?.toLowerCase())
-    )
-
-    if (duplicate) {
-      const addAsCopy = window.confirm(
-        `You already own a copy of "${duplicate.title}". Do you want to add this as another copy to the same Work record?`
-      )
-      if (addAsCopy) {
-        workIdToUse = duplicate.workId
-        prefilledData = {
-          ...prefilledData,
-          title: duplicate.title,
-          author: duplicate.author,
-          genre: duplicate.genre,
-          hours: duplicate.hours,
-          recommendedBy: duplicate.recommendedBy,
-          volume: duplicate.volume,
-          photoUrl: duplicate.photoUrl,
-          summary: duplicate.summary,
-          description: duplicate.description,
-          authorDescription: duplicate.authorDescription,
-          isbn: duplicate.isbn,
-          launchYear: duplicate.launchYear,
-          originalLanguage: duplicate.originalLanguage,
-          countryOfOrigin: duplicate.countryOfOrigin,
-          tags: duplicate.tags,
-          collections: duplicate.collections,
-          apiData: duplicate.apiData,
-          readingSpans: duplicate.readingSpans
-        }
+  async function handleBatchDelete() {
+    if (mutationLock.current || !selectedBooks.length) return
+    if (!window.confirm(`Delete ${selectedBooks.length} selected copies? Other copies and catalog details will be kept.`)) return
+    mutationLock.current = true; setMutating(true)
+    const remaining = [...selectedBooks]; let removed = 0
+    try {
+      while (remaining.length) {
+        const batch = remaining.slice(0, 100)
+        const result = await deleteCopiesAction(batch)
+        if (!result.success) throw new Error(result.error)
+        remaining.splice(0, batch.length); removed += batch.length
       }
-    }
-
-    setEditingBook({
-      ...blankBook(),
-      id: (bookData.id || '') as string,
-      workId: workIdToUse,
-      ...prefilledData
-    })
+      toast(`${removed} copies removed`, 'success')
+    } catch (error) { toast(`${removed} copies removed. ${error instanceof Error ? error.message : 'Please retry the remaining selection.'}`, 'error') }
+    finally { setSelectedBooks(remaining); setIsBatchMode(remaining.length > 0); refresh(); void refreshOverview(); mutationLock.current = false; setMutating(false) }
   }
-
-  const handleBatchSelect = (id: string) => {
-    setSelectedBooks(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+  const resetFilters = () => { void setFilters(null) }
+  const hasActiveFilters = search || [statusFilter,volumeFilter,genreFilter,authorFilter,yearFilter,formatFilter,purchasedFilter,shelfFilter].some(value => value !== 'All') || sortBy !== 'id'
+  async function suggestNextRead() {
+    const unread = allBooks.filter(book => book.status === 'Unread' && ['Purchased','Gifted'].includes(book.ownership || (book.purchased ? 'Purchased' : 'None')) && !book.loans.some(loan => !loan.dateReturned))
+    if (unread.length) await openView(unread[Math.floor(Math.random() * unread.length)])
+    else toast(overviewLoading ? 'Library totals are still loading.' : 'No available owned unread copies found.', 'info')
   }
-
-  const handleBatchMarkRead = () => {
-    const updated = books.map(b =>
-      selectedBooks.includes(b.id) ? { ...b, status: 'Read' } : b
-    )
-    setBooks(updated)
-    saveBooks(updated)
-    toast(`${selectedBooks.length} books marked as read`, 'success')
-    setSelectedBooks([])
-    setIsBatchMode(false)
-  }
-
-  const handleBatchDelete = () => {
-    const updated = books.filter(b => !selectedBooks.includes(b.id))
-    setBooks(updated)
-    saveBooks(updated)
-    toast(`${selectedBooks.length} books removed`, 'info')
-    setSelectedBooks([])
-    setIsBatchMode(false)
-  }
-
-  const resetFilters = () => {
-    setFilters(null);
-  }
-
-  const hasActiveFilters =
-    search ||
-    statusFilter !== 'All' ||
-    volumeFilter !== 'All' ||
-    genreFilter !== 'All' ||
-    authorFilter !== 'All' ||
-    yearFilter !== 'All' ||
-    formatFilter !== 'All' ||
-    purchasedFilter !== 'All' ||
-    shelfFilter !== 'All' ||
-    sortBy !== 'id'
-
-  const suggestNextRead = () => {
-    const unread = books.filter(
-      b => b.status === 'Unread' || b.status === 'Wishlist'
-    )
-    if (unread.length > 0) {
-      setViewingBook(unread[Math.floor(Math.random() * unread.length)])
-    } else {
-      toast('No unread books available!', 'info')
-    }
-  }
-
-  const checkWishlistPrices = async () => {
-    const wishlistBooks = books.filter(
-      b => b.status === 'Wishlist' && b.amazonLink
-    )
-    if (wishlistBooks.length === 0) {
-      toast('No Wishlist books with Amazon links found', 'info')
-      return
-    }
-
-    toast(`Checking prices for ${wishlistBooks.length} books...`, 'info')
-    setLoading(true)
-
-    let updatedBooks = [...books]
-    let updatedCount = 0
-
-    for (const book of wishlistBooks) {
-      try {
-        const res = await fetch('/api/price-tracker', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: book.amazonLink })
-        })
-        const data = await res.json()
-        if (data.price !== undefined && data.price !== null) {
-          updatedBooks = updatedBooks.map(b =>
-            b.id === book.id ? { ...b, purchasePrice: data.price } : b
-          )
-          updatedCount++
-        }
-      } catch (err) {
-        console.error('Failed to fetch price for', book.title, err)
+  async function checkWishlistPrices() {
+    if (mutating) return
+    const wishlist = allBooks.filter(book => book.status === 'Wishlist' && book.amazonLink).sort((a, b) => (a.offerCheckedAt || '').localeCompare(b.offerCheckedAt || ''))
+    if (!wishlist.length) { toast('No wishlist books with Amazon links found.', 'info'); return }
+    setMutating(true)
+    let updated = 0; let failed = 0
+    try {
+      for (const book of wishlist.slice(0, 10)) {
+        const response = await fetch('/api/price-tracker', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: book.amazonLink, copyId: book.id }) })
+        const result = await response.json()
+        if (response.ok) updated++
+        else { failed++; if (failed === 1) toast(result.error || 'Price lookup failed.', 'error') }
       }
-    }
-
-    if (updatedCount > 0) {
-      setBooks(updatedBooks)
-      saveBooks(updatedBooks)
-      toast(`Updated prices for ${updatedCount} books`, 'success')
-    } else {
-      toast('No prices were updated', 'info')
-    }
-
-    setLoading(false)
+      await refreshOverview(); refresh()
+      toast(`${updated} offers checked${failed ? `; ${failed} unavailable` : ''}${wishlist.length > 10 ? '. First 10 checked; retry later for more.' : ''}`, updated ? 'success' : 'info')
+    } catch { toast('Unable to complete price lookup. Acquisition costs were preserved.', 'error') }
+    finally { setMutating(false) }
   }
-
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    toast('Importing CSV...', 'info')
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async results => {
-        try {
-          const worksMap = new Map<string, BookWork>()
-          const copies: BookCopy[] = []
-
-          results.data.forEach((row: any) => {
-            if (!row.Title) return // Skip invalid
-
-            let isbn = row.ISBN13 || row.ISBN || ''
-            isbn = isbn.replace(/^="(.+)"$/, '$1').trim()
-
-            const grShelf = (row['Exclusive Shelf'] || '').toLowerCase()
-            let status = 'Unread'
-            if (grShelf === 'read') status = 'Read'
-            if (grShelf === 'currently-reading') status = 'Reading'
-            if (grShelf === 'to-read') status = 'Wishlist'
-
-            const workId = `w_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-            const copyId = `c_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-
-            const work: BookWork = {
-              id: workId,
-              title: row.Title,
-              author: row['Author l-f'] || row.Author || 'Unknown',
-              genre: 'Uncategorized',
-              hours: '0',
-              recommendedBy: '',
-              volume: '',
-              photoUrl: '',
-              summary: '',
-              launchYear:
-                row['Original Publication Year'] || row['Year Published'] || '',
-              description: '',
-              isbn: isbn,
-              tags: [],
-              collections: [],
-              apiData: {},
-              readingSpans: [],
-              // New Goodreads fields
-              goodreadsId: row['Book Id'] || null,
-              authorLF: row['Author l-f'] || null,
-              additionalAuthors: row['Additional Authors'] || null,
-              publisher: row['Publisher'] || null,
-              yearPublished: row['Year Published'] || null,
-              originalPublicationYear: row['Original Publication Year'] || null,
-              ownedCopies: parseInt(row['Owned Copies']) || null
-            }
-            worksMap.set(workId, work)
-
-            const copy: BookCopy = {
-              id: copyId,
-              workId: workId,
-              status: status,
-              rating: parseInt(row['My Rating']) || undefined,
-              format: row.Binding || 'Physical',
-              totalPages: parseInt(row['Number of Pages']) || undefined,
-              purchased: true,
-              condition: 'Good',
-              shelfLocation: '',
-              purchasePrice: 0,
-              investedAmount: 0,
-              readingSessions: [],
-              quotes: [],
-              loans: [],
-              // New Goodreads fields
-              dateRead: row['Date Read'] || null,
-              dateAdded: row['Date Added'] || null,
-              bookshelves: row['Bookshelves'] || null,
-              bookshelvesWithPositions:
-                row['Bookshelves with positions'] || null,
-              exclusiveShelf: row['Exclusive Shelf'] || null,
-              myReview: row['My Review'] || null,
-              spoiler: row['Spoiler'] || null,
-              privateNotes: row['Private Notes'] || null,
-              readCount: parseInt(row['Read Count']) || null
-            }
-            copies.push(copy)
-          })
-
-          const res = await importBooksAction(
-            Array.from(worksMap.values()),
-            copies
-          )
-          if (res.success) {
-            toast('Import successful! Refreshing...', 'success')
-            window.location.reload()
-          } else {
-            toast('Import failed', 'error')
-          }
-        } catch (error) {
-          toast('Error importing CSV', 'error')
-        }
-      },
-      error: () => {
-        toast('Failed to parse CSV', 'error')
-      }
-    })
-
-    // reset input
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  async function exportLibrary(format: 'json' | 'csv') {
+    try {
+      const response = await fetch(`/api/library/export?format=${format}`)
+      if (!response.ok) { const result = await response.json(); throw new Error(result.error || 'Export failed.') }
+      const url = URL.createObjectURL(await response.blob())
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `library-${localToday()}.${format}`; anchor.click(); URL.revokeObjectURL(url)
+      toast('Complete library exported', 'success')
+    } catch (error) { toast(error instanceof Error ? error.message : 'Export failed.', 'error') }
   }
-
-  const exportLibrary = (format: 'json' | 'csv') => {
-    if (format === 'json') {
-      const blob = new Blob([JSON.stringify(books, null, 2)], {
-        type: 'application/json'
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `library-export-${new Date().toISOString().split('T')[0]}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast('Library exported as JSON', 'success')
-    } else {
-      const headers = [
-        'id',
-        'title',
-        'author',
-        'genre',
-        'status',
-        'format',
-        'isbn',
-        'launchYear',
-        'purchasePrice',
-        'rating',
-        'pages',
-        'summary'
-      ]
-      const rows = books.map(b =>
-        headers
-          .map(h => {
-            const v = (b as unknown as Record<string, unknown>)[h]
-            return typeof v === 'string'
-              ? `"${v.replace(/"/g, '""')}"`
-              : (v ?? '')
-          })
-          .join(',')
-      )
-      const csv = [headers.join(','), ...rows].join('\n')
-      const blob = new Blob([csv], { type: 'text/csv' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `library-export-${new Date().toISOString().split('T')[0]}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast('Library exported as CSV', 'success')
-    }
+  function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) setImportFile(file)
+    event.target.value = ''
   }
-
-  const currentlyReading = books.filter(b => b.status === 'Reading').slice(0, 3)
+  const currentlyReading = allBooks.filter(book => book.status === 'Reading').slice(0, 3)
 
   // ── Theme tokens for this render ───────────────────────────────────────────
   const P = palette(isDark)
@@ -738,7 +249,7 @@ export default function LibraryClient({
   const authorOptions: Option[] = [
     ['All', 'All authors'],
     ...Array.from(
-      new Map(books.map(b => [b.author.toLowerCase(), b.author])).values()
+      new Map(allBooks.map(b => [b.author.toLowerCase(), b.author])).values()
     )
       .sort()
       .map((a): Option => [a, a])
@@ -747,7 +258,7 @@ export default function LibraryClient({
     ['All', 'Any location'],
     ...Array.from(
       new Set(
-        books
+        allBooks
           .map(b => b.shelfLocation)
           .filter(Boolean)
           .map(l => String(l).trim())
@@ -768,13 +279,13 @@ export default function LibraryClient({
       label: 'Collection',
       value: genreFilter,
       set: (v: string) => setFilters({ genreFilter: v }),
-      options: genreOptions
+      options: mergeOptions(genreOptions, allBooks.map(book => book.genre))
     },
     {
       label: 'Volume',
       value: volumeFilter,
       set: (v: string) => setFilters({ volumeFilter: v }),
-      options: volumeOptions
+      options: mergeOptions(volumeOptions, allBooks.map(book => book.volume))
     },
     {
       label: 'Author',
@@ -819,8 +330,8 @@ export default function LibraryClient({
           isBatchMode={isBatchMode}
           isSelected={selectedBooks.includes(book.id)}
           onSelect={() => handleBatchSelect(book.id)}
-          onEdit={() => setEditingBook(book)}
-          onView={() => setViewingBook(book)}
+          onEdit={() => void openEdit(book)}
+          onView={() => void openView(book)}
         />
       ))}
     </div>
@@ -866,9 +377,7 @@ export default function LibraryClient({
             className="w-20 h-20 rounded-[28px] overflow-hidden animate-bounce"
             style={{ boxShadow: R(10, 24) }}
           >
-            <img
-              src="/fav.jpg"
-              alt="TaleTeacup"
+            <Image width={160} height={160} src="/fav.jpg" alt="TaleTeacup"
               className="w-full h-full object-cover"
             />
           </div>
@@ -945,9 +454,7 @@ export default function LibraryClient({
               className="rounded-[26px] p-2"
               style={{ background: P.panel, boxShadow: R(5, 14) }}
             >
-              <img
-                src="/final.png"
-                alt="TaleTeacup Logo"
+              <Image width={160} height={160} src="/final.png" alt="TaleTeacup Logo"
                 className="w-full aspect-video object-contain rounded-2xl"
               />
             </div>
@@ -1072,17 +579,12 @@ export default function LibraryClient({
                   return (
                     <div
                       key={b.id}
-                      onClick={() => setViewingBook(b)}
+                      onClick={() => void openView(b)}
                       className="flex items-center gap-3 p-2.5 rounded-[22px] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]"
                       style={{ background: P.panel, boxShadow: R(5, 14) }}
                     >
                       {b.coverFile || b.photoUrl ? (
-                        <img
-                          src={b.coverFile || b.photoUrl}
-                          alt={b.title}
-                          className="w-9 h-[52px] object-cover rounded-lg shrink-0"
-                          style={{ boxShadow: '3px 5px 10px rgba(0,0,0,.28)' }}
-                        />
+                        <BookCover book={b} className="w-full h-full object-cover" />
                       ) : (
                         <div
                           className="w-9 h-[52px] rounded-lg shrink-0 flex items-center justify-center text-[9px] font-bold"
@@ -1137,6 +639,7 @@ export default function LibraryClient({
           className="relative z-10 flex-1 flex flex-col h-[calc(100vh-24px)] sm:h-[calc(100vh-32px)] lg:h-[calc(100vh-40px)] overflow-hidden min-w-0 rounded-[30px] sm:rounded-[36px] transition-colors duration-300"
           style={{ background: P.panel, boxShadow: R(10, 28) }}
         >
+          {loadError && <div role="alert" className="m-4 rounded-2xl bg-red-100 p-4 text-sm text-red-900 dark:bg-red-950 dark:text-red-100">{loadError}<button className="ml-4 underline" onClick={() => { refresh(); void refreshOverview() }}>Retry</button></div>}
           {/* ─ Header ─ */}
           <header className="shrink-0 px-5 sm:px-6 lg:px-7 pt-5 pb-4 z-50 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -1185,7 +688,7 @@ export default function LibraryClient({
 
             <div className="flex items-center gap-2.5 sm:gap-3">
               <div className="hidden sm:block min-w-0">
-                <DashboardStats books={books} />
+                {overviewLoading ? <p role="status" className="text-xs">Loading library totals…</p> : <DashboardStats books={allBooks} />}
               </div>
 
               {/* Export / import menu */}
@@ -1209,47 +712,9 @@ export default function LibraryClient({
                       >
                         Export &amp; Import
                       </p>
-                      {[
-                        {
-                          icon: '↓',
-                          label: 'Export JSON',
-                          run: () => {
-                            exportLibrary('json')
-                            setExportMenuOpen(false)
-                          }
-                        },
-                        {
-                          icon: '↓',
-                          label: 'Export CSV',
-                          run: () => {
-                            exportLibrary('csv')
-                            setExportMenuOpen(false)
-                          }
-                        },
-                        {
-                          icon: '↑',
-                          label: 'Import Goodreads CSV',
-                          run: () => {
-                            fileInputRef.current?.click()
-                            setExportMenuOpen(false)
-                          }
-                        }
-                      ].map(item => (
-                        <button
-                          key={item.label}
-                          onClick={item.run}
-                          className="px-4 py-2.5 rounded-[16px] text-xs font-semibold text-left transition-all hover:scale-[1.01] active:scale-[0.98] flex items-center gap-3"
-                          style={{ color: P.body }}
-                        >
-                          <span
-                            className="w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0"
-                            style={{ background: P.well, color: P.accent }}
-                          >
-                            {item.icon}
-                          </span>
-                          {item.label}
-                        </button>
-                      ))}
+                      <button onClick={() => { void exportLibrary('json'); setExportMenuOpen(false) }} className="px-4 py-3 text-left text-sm">↓ Export JSON</button>
+                      <button onClick={() => { void exportLibrary('csv'); setExportMenuOpen(false) }} className="px-4 py-3 text-left text-sm">↓ Export CSV</button>
+                      <button onClick={openImport} className="px-4 py-3 text-left text-sm">↑ Import JSON / CSV</button>
                     </div>
                   </div>
                 )}
@@ -1349,9 +814,9 @@ export default function LibraryClient({
 
           {/* ─ Content area ─ */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-5 sm:px-6 lg:px-7 pt-3 pb-28 z-10 relative">
-            {viewMode === 'analytics' && <AnalyticsDashboard books={books} />}
-            {viewMode === 'loans' && (
-              <LoanTracker books={books} onEdit={setEditingBook} />
+            {viewMode === 'analytics' && <AnalyticsDashboard key={annualGoal} books={allBooks} annualGoal={annualGoal} onGoalChange={setAnnualGoal} />}
+            {viewMode === 'loans' && !overviewLoading && !loadError && (
+              <LoanTracker books={allBooks} onEdit={book => void openEdit(book)} />
             )}
 
             {viewMode === 'wishlist' && (
@@ -1393,8 +858,8 @@ export default function LibraryClient({
                           key={b.id}
                           book={b}
                           isDark={isDark}
-                          onEdit={() => setEditingBook(b)}
-                          onView={() => setViewingBook(b)}
+                          onEdit={() => void openEdit(b)}
+                          onView={() => void openView(b)}
                         />
                       ))}
                   </div>
@@ -1411,12 +876,12 @@ export default function LibraryClient({
             {viewMode === 'list' && (
               <div className="flex flex-col gap-4">
                 {books.length === 0 && noResultsState}
-                {books.map((book, i) => (
+                {books.map((book) => (
                   <BookListCard
                     key={book.id}
                     book={book}
-                    onEdit={() => setEditingBook(book)}
-                    onView={() => setViewingBook(book)}
+                    onEdit={() => void openEdit(book)}
+                    onView={() => void openView(book)}
                     isDark={isDark}
                   />
                 ))}
@@ -1550,30 +1015,7 @@ export default function LibraryClient({
                             style={{ background: P.well, boxShadow: V(3, 8) }}
                           >
                             {authorBooks.slice(0, 4).map(b => (
-                              <div
-                                key={b.id}
-                                onClick={() => setViewingBook(b)}
-                                className="aspect-[2/3] rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105 hover:-rotate-2"
-                                style={{
-                                  background: P.panel,
-                                  boxShadow: '3px 5px 10px rgba(0,0,0,.25)'
-                                }}
-                              >
-                                {b.coverFile || b.photoUrl ? (
-                                  <img
-                                    src={b.coverFile || b.photoUrl}
-                                    alt={b.title}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div
-                                    className="w-full h-full flex items-center justify-center text-[8px] font-bold"
-                                    style={{ color: P.faint }}
-                                  >
-                                    #{String(b.id).replace('c_', '')}
-                                  </div>
-                                )}
-                              </div>
+                              <BookThumbnailButton key={b.id} book={b} onView={openView} style={{ background: P.panel, boxShadow: '3px 5px 10px rgba(0,0,0,.25)' }} />
                             ))}
                           </div>
                           {authorBooks.length > 4 && (
@@ -1654,7 +1096,7 @@ export default function LibraryClient({
                   {selectedBooks.length} selected
                 </span>
                 <button
-                  onClick={handleBatchMarkRead}
+                  disabled={mutating} onClick={handleBatchMarkRead}
                   className="text-[12px] font-bold px-4 py-2 rounded-full transition-transform hover:scale-105 active:scale-95"
                   style={clayFill(
                     statusTheme.Read.rgb,
@@ -1666,7 +1108,7 @@ export default function LibraryClient({
                   Mark read
                 </button>
                 <button
-                  onClick={handleBatchDelete}
+                  disabled={mutating} onClick={handleBatchDelete}
                   className="text-[12px] font-bold px-4 py-2 rounded-full transition-transform hover:scale-105 active:scale-95"
                   style={clayFill('244,63,94', '#fb7185', '#f43f5e', 3)}
                 >
@@ -1709,17 +1151,19 @@ export default function LibraryClient({
           onFormatChange={(v: string) => setFilters({ formatFilter: v })}
           purchasedFilter={purchasedFilter}
           onPurchasedChange={(v: string) => setFilters({ purchasedFilter: v })}
-          books={books}
+          books={allBooks}
+          shelfFilter={shelfFilter}
+          onShelfChange={value => void setFilters({ shelfFilter: value })}
           onReset={resetFilters}
         />
 
         {/* Hidden Goodreads CSV input */}
         <input
           type="file"
-          accept=".csv"
+          accept=".csv,.json"
           ref={fileInputRef}
           className="hidden"
-          onChange={handleImportCSV}
+          onChange={handleImportFile}
         />
 
         {/* ─── Modals ──────────────────────────────────────────────── */}
@@ -1732,6 +1176,7 @@ export default function LibraryClient({
         )}
         {editingBook && (
           <EditModal
+            key={editingBook.id || editingBook.enrichmentKey || 'new'}
             book={editingBook}
             onClose={() => setEditingBook(null)}
             onSave={handleSaveBook}
@@ -1744,89 +1189,23 @@ export default function LibraryClient({
             onClose={() => setViewingBook(null)}
             onEdit={() => {
               setViewingBook(null)
-              setTimeout(() => setEditingBook(viewingBook), 60)
+              void openEdit(viewingBook)
             }}
+
             onReadPdf={() => {
               setViewingBook(null)
               setTimeout(() => setReadingPdfBook(viewingBook), 60)
             }}
           />
         )}
-        {readingPdfBook && readingPdfBook.pdfPath && (
-          <>
-            {readingPdfBook.pdfPath.endsWith('.epub') ? (
-              <EpubReaderModal
-                epubUrl={readingPdfBook.pdfPath}
-                initialLocation={readingPdfBook.currentPage || 0}
-                onClose={sessionData => {
-                  const newSession = {
-                    date: new Date().toISOString().split('T')[0],
-                    durationMinutes: sessionData.durationMinutes,
-                    pagesRead: Math.max(0, sessionData.endPage - sessionData.startPage),
-                    startPage: sessionData.startPage,
-                    endPage: sessionData.endPage
-                  }
-
-                  const updatedBook = {
-                    ...readingPdfBook,
-                    currentPage: 1, // Store something safe, or ideally we'd update schema to support string locations
-                    lastReadTimestamp: new Date().toISOString(),
-                    readingSessions: [
-                      ...(readingPdfBook.readingSessions || []),
-                      newSession
-                    ]
-                  }
-
-                  setBooks(prev => {
-                    const newBooks = prev.map(b =>
-                      b.id === readingPdfBook.id ? updatedBook : b
-                    )
-                    saveBooks(newBooks)
-                    return newBooks
-                  })
-                  setReadingPdfBook(null)
-                }}
-              />
-            ) : (
-              <PdfReaderModal
-                pdfUrl={readingPdfBook.pdfPath}
-                initialPage={readingPdfBook.currentPage || 1}
-                onClose={sessionData => {
-                  // Update book with new session and reading progress
-                  const newSession = {
-                    date: new Date().toISOString().split('T')[0],
-                    durationMinutes: sessionData.durationMinutes,
-                    pagesRead: Math.max(
-                      0,
-                      sessionData.endPage - sessionData.startPage
-                    ),
-                    startPage: sessionData.startPage,
-                    endPage: sessionData.endPage
-                  }
-
-                  const updatedBook = {
-                    ...readingPdfBook,
-                    currentPage: sessionData.endPage,
-                    lastReadTimestamp: new Date().toISOString(),
-                    readingSessions: [
-                      ...(readingPdfBook.readingSessions || []),
-                      newSession
-                    ]
-                  }
-
-                  setBooks(prev => {
-                    const newBooks = prev.map(b =>
-                      b.id === readingPdfBook.id ? updatedBook : b
-                    )
-                    saveBooks(newBooks)
-                    return newBooks
-                  })
-                  setReadingPdfBook(null)
-                }}
-              />
-            )}
-          </>
-        )}
+        {readingPdfBook?.pdfPath && (attachmentType(readingPdfBook) === 'epub' ? (
+          <EpubReaderModal epubUrl={readingPdfBook.pdfPath} initialLocation={readingPdfBook.epubLocation || 0}
+            copyId={readingPdfBook.id} onClose={() => { setReadingPdfBook(null); void refreshOverview() }} />
+        ) : (
+          <PdfReaderModal pdfUrl={readingPdfBook.pdfPath} initialPage={readingPdfBook.currentPage || 1}
+            copyId={readingPdfBook.id} onClose={() => { setReadingPdfBook(null); void refreshOverview() }} />
+        ))}
+        {importFile && <ImportLibraryModal file={importFile} onClose={() => setImportFile(null)} onComplete={() => { refresh(); void refreshOverview() }} />}
 
         {/* Global toast notifications */}
         <ToastProvider />

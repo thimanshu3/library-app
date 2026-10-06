@@ -35,7 +35,7 @@ export const viewModes: { id: ViewMode; label: string }[] = [
 export type Option = [value: string, label: string]
 
 export const sortOptions: Option[] = [
-  ['id', 'Reading order (#1–#300)'],
+  ['id', 'Reading order'],
   ['title', 'Title A–Z'],
   ['year', 'Launch year (oldest first)'],
   ['price', 'Investment (highest first)']
@@ -363,4 +363,9 @@ export function SectionHeader({
       />
     </div>
   )
+}
+
+export function mergeOptions(base: Option[], values: string[]): Option[] {
+  const existing = new Set(base.map(([value]) => value))
+  return [...base, ...[...new Set(values.filter(Boolean))].filter(value => !existing.has(value)).sort().map((value): Option => [value, value])]
 }

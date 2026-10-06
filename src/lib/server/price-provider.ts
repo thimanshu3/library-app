@@ -3,7 +3,7 @@ import 'server-only'
 import { lookup } from 'node:dns/promises'
 import { request as httpsRequest } from 'node:https'
 import ipaddr from 'ipaddr.js'
-import { HttpError } from './http'
+import { HttpError } from './errors'
 
 const HOSTS = new Map([
   ['amazon.in', 'www.amazon.in'], ['www.amazon.in', 'www.amazon.in'],

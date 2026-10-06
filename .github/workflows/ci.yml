@@ -1,0 +1,26 @@
+name: Code checks
+on:
+  push:
+  pull_request:
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://build:build@localhost:5432/build
+      DIRECT_URL: postgresql://build:build@localhost:5432/build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint --max-warnings=0
+      - run: pnpm build
+      - run: pnpm audit --prod --audit-level=high
+      # New test cases are deferred at the owner's request; this change gates
+      # types, lint, production compilation, and production dependency advisories.

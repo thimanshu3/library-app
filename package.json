@@ -12,33 +12,40 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "auth:setup": "tsx scripts/setup-owner.ts",
-    "ebooks:migrate": "tsx scripts/migrate-private-ebooks.ts"
+    "ebooks:migrate": "tsx scripts/migrate-private-ebooks.ts",
+    "db:migrate": "tsx scripts/migrate-database.ts",
+    "db:history": "tsx scripts/migrate-reading-history.ts",
+    "ebooks:cleanup": "node --conditions=react-server --import tsx scripts/cleanup-attachments.ts",
+    "db:backup": "tsx scripts/database-backup.ts",
+    "db:restore": "tsx scripts/database-restore.ts",
+    "preinstall": "node scripts/require-pnpm.mjs",
+    "ebooks:register": "node --conditions=react-server --import tsx scripts/register-ebooks.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
     "@prisma/client": "^5.22.0",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
-    "axios": "^1.20.0",
     "date-fns": "^4.4.0",
+    "dotenv": "^18.0.5",
     "epubjs": "^0.3.93",
-    "glob": "^13.0.6",
     "html-to-image": "^1.11.13",
     "ipaddr.js": "^2.5.0",
     "iron-session": "^9.0.1",
     "next": "16.3.8",
     "nuqs": "^2.10.1",
     "papaparse": "^5.7.0",
+    "pdfjs-dist": "6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-pdf": "^11.0.0",
     "react-reader": "^2.0.15",
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
-    "yauzl": "^3.4.0"
+    "yauzl": "^3.4.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@prisma/config": "^7.10.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.5",
     "@types/papaparse": "^5.5.2",
@@ -57,5 +64,14 @@
   "packageManager": "pnpm@10.22.0",
   "engines": {
     "node": ">=22.13.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "epubjs>@xmldom/xmldom": "0.9.12",
+      "source-map-js": "1.2.2"
+    },
+    "patchedDependencies": {
+      "braces@3.0.3": "patches/braces@3.0.3.patch"
+    }
   }
 }

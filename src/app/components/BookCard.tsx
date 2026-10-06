@@ -1,10 +1,11 @@
 'use client'
+import BookCover from './BookCover'
 
 import type { CSSProperties, ReactNode } from 'react'
+import { progressPercent } from '@/lib/library-domain'
 import { Book } from '../types'
 
 // Change to match your currency
-const CURRENCY = '₹'
 
 // ─── Extra Work/Copy fields (typed loosely so this compiles even if `Book` lacks them) ───
 type Extra = Partial<{
@@ -262,40 +263,24 @@ export default function BookCard({
   // Pages
   const totalPages = book.totalPages || b.pageCount || 0
 
-  // Reading progress
-  let progress = -1
-  if (status === 'Read') {
-    progress = 100
-  } else if (status === 'Reading') {
-    if (book.currentPage && totalPages > 0) {
-      progress = Math.min(99, Math.round((book.currentPage / totalPages) * 100))
-    } else if (book.readingStartDate) {
-      const hoursNum =
-        parseFloat(book.hours?.replace(/[^0-9.]/g, '') || '0') || 8
-      // eslint-disable-next-line react-hooks/purity
-      const elapsed =
-        (Date.now() - new Date(book.readingStartDate).getTime()) / (1000 * 3600)
-      progress = Math.min(95, Math.round((elapsed / hoursNum) * 100))
-    }
-  }
-
+  const progress = progressPercent(book) ?? -1
   const lastRead = timeAgo(b.lastReadTimestamp)
   const progressLabel =
     status === 'Read'
       ? `Finished${b.dateRead ? ' ' + fmtDate(b.dateRead) : ''}`
-      : book.currentPage && totalPages > 0
+      : book.currentPage != null && totalPages > 0
         ? `Page ${book.currentPage} of ${totalPages}`
-        : 'In progress (estimated)'
+        : 'Progress unknown'
 
   // Derived display data
   const hasFormat = book.format && book.format !== 'None'
-  const isOwned = book.purchased
+  const isOwned = ['Purchased', 'Gifted'].includes(book.ownership || (book.purchased ? 'Purchased' : 'None'))
   const copiesN =
     b.ownedCopies || (Array.isArray(b.copies) ? b.copies.length : 0)
   const year = book.launchYear || b.originalPublicationYear || b.yearPublished
   const rating = Math.max(0, Math.min(5, book.rating || 0))
-  const coverSrc = book.coverFile || book.photoUrl
-  const seriesLabel = b.series || ''
+  const coverSrc = !!(book.coverFile || book.photoUrl)
+  const seriesLabel = typeof book.series === 'string' ? book.series : book.series?.name || ''
   const extraAuthors = b.additionalAuthors
     ? b.additionalAuthors.split(',').filter(s => s.trim()).length
     : 0
@@ -313,7 +298,7 @@ export default function BookCard({
     stat(
       'Paid',
       b.purchasePrice && b.purchasePrice > 0
-        ? `${CURRENCY}${b.purchasePrice}`
+        ? new Intl.NumberFormat(undefined, { style: 'currency', currency: book.currency || 'INR' }).format(b.purchasePrice)
         : null
     )
   ]
@@ -366,6 +351,7 @@ export default function BookCard({
 
   return (
     <div
+      role="button" tabIndex={0} aria-label={`View ${book.title}`} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (isBatchMode && onSelect) onSelect(); else onView() } }}
       onClick={isBatchMode ? onSelect : onView}
       style={cardStyle}
       className={`
@@ -395,48 +381,9 @@ export default function BookCard({
           <>
             <div
               className="absolute inset-0 scale-125 blur-2xl opacity-40 group-hover:opacity-60 transition-opacity duration-700"
-              style={{
-                backgroundImage: `url(${coverSrc})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center'
-              }}
-            />
-            <img
-              src={coverSrc}
-              alt={book.title}
-              className="h-[84%] w-auto max-w-[78%] relative z-10 object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.05] group-hover:-rotate-1 transition-transform duration-700 ease-out"
-              style={{
-                boxShadow:
-                  '8px 12px 24px rgba(0,0,0,.35), -2px -2px 6px rgba(255,255,255,.25)'
-              }}
-              onError={e => {
-                const img = e.currentTarget
-                const fallback = img.dataset.fallback || '0'
-
-                if (fallback === '0') {
-                  // First fallback: try OpenLibrary cover by ISBN13
-                  const isbn = (book as any).isbn13 || (book as any).isbn
-                  if (isbn) {
-                    img.dataset.fallback = '1'
-                    img.src = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`
-                    return
-                  }
-                }
-
-                if (fallback === '0' || fallback === '1') {
-                  // Second fallback: title + author search
-                  img.dataset.fallback = '2'
-                  const q = encodeURIComponent(`${book.title} ${book.author}`)
-                  img.src = `https://covers.openlibrary.org/b/olid/OL-L.jpg?title=${q}`
-                  return
-                }
-
-                // All fallbacks failed — hide image, let placeholder show
-                img.style.display = 'none'
-                const blurDiv = img.previousElementSibling as HTMLElement | null
-                if (blurDiv) blurDiv.style.display = 'none'
-              }}
-            />
+              aria-hidden="true"
+            ><BookCover book={book} decorative className="h-full w-full object-cover" /></div>
+            <BookCover book={book} className="h-[84%] w-auto max-w-[78%] relative z-10 object-contain rounded-lg sm:rounded-xl" />
           </>
         ) : (
           <div
@@ -632,6 +579,7 @@ export default function BookCard({
         </p>
 
         {/* Progress */}
+        {book.status === 'Wishlist' && book.offerPrice != null && <p className="text-xs font-semibold mb-2">Latest offer: {book.offerCurrency} {book.offerPrice.toFixed(2)}{book.offerCheckedAt && <span> · {book.offerCheckedAt.slice(0, 10)}</span>}</p>}
         {progress >= 0 && (
           <div>
             <div
@@ -666,7 +614,7 @@ export default function BookCard({
               <div
                 className="h-full rounded-full transition-[width] duration-700"
                 style={{
-                  width: `${Math.max(progress, 8)}%`,
+                  width: `${progress}%`,
                   background: `linear-gradient(90deg, ${a.light}, ${a.main})`,
                   boxShadow: `inset 0 2px 3px rgba(255,255,255,.5), 0 2px 6px rgba(${a.rgb},.45)`
                 }}

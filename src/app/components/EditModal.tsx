@@ -1,7 +1,9 @@
 'use client'
+import BookCover from './BookCover'
+import { bookCover } from '@/lib/book-cover'
 
 import type { ChangeEvent, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   chipShadow,
   clayFill,
@@ -11,7 +13,11 @@ import {
   raised,
   statusTheme
 } from '../clay'
-import { Book } from '../types'
+import { cachedEnrichment } from '@/lib/client-enrichment'
+import { Book, LoanRecord } from '../types'
+import { useTheme } from '../hooks/use-theme'
+import { useDialog } from '../hooks/use-dialog'
+import { localToday } from '@/lib/library-domain'
 
 // App primary (rust/terracotta) — matches --primary in globals.css
 const PRIMARY_RGB = '196,106,79'
@@ -264,32 +270,42 @@ export default function EditModal({
 }: {
   book: Book
   onClose: () => void
-  onSave: (book: Book) => void
+  onSave: (book: Book) => Promise<void>
 }) {
-  const [formData, setFormData] = useState<Book>(book)
+  const [formData, setFormData] = useState<Book>(() => ({ ...book, ...(!book.id ? { createToken: crypto.randomUUID() } : {}) }))
+  const [tagDraft, setTagDraft] = useState(book.tags.join(', '))
+  const [collectionDraft, setCollectionDraft] = useState(book.collections.join(', '))
   const [activeTab, setActiveTab] = useState<'edit' | 'files' | 'info'>('edit')
   const [uploadingPdf, setUploadingPdf] = useState(false)
-  const [isDark, setIsDark] = useState(false)
-
+  const isDark = useTheme()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const dirtyFields = useRef(new Set<string>())
+  const close = () => { if (!saving && !uploadingPdf) onClose() }
+  const dialogRef = useDialog(close)
+  const activeLoan = formData.loans?.find(loan => !loan.dateReturned)
+  const changeLoan = (changes: Partial<LoanRecord>) => setFormData(previous => ({ ...previous, loans: previous.loans.map(loan => loan.id === activeLoan?.id ? { ...loan, ...changes } : loan) }))
+  async function save() {
+    if (saving || uploadingPdf) return
+    if (!formData.title.trim() || !formData.author.trim()) { setError('Title and author are required.'); return }
+    setSaving(true); setError('')
+    try { await onSave({ ...formData, tags: tagDraft.split(',').map(value => value.trim()).filter(Boolean), collections: collectionDraft.split(',').map(value => value.trim()).filter(Boolean) }) } catch (error) { setError(error instanceof Error ? error.message : 'Unable to save. Your draft is preserved.') }
+    finally { setSaving(false) }
+  }
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
-    const obs = new MutationObserver(() =>
-      setIsDark(document.documentElement.classList.contains('dark'))
-    )
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-    return () => obs.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+    const listener = (event: Event) => {
+      const { bookKey, description, authorDescription } = (event as CustomEvent<{ bookKey: string; description?: string; authorDescription?: string }>).detail
+      if (bookKey !== book.enrichmentKey) return
+      setFormData(previous => (`${previous.title}|${previous.author}|${previous.isbn || ''}` !== bookKey ? previous : { ...previous,
+        description: !dirtyFields.current.has('description') && !previous.description ? description || previous.description : previous.description,
+        authorDescription: !dirtyFields.current.has('authorDescription') && !previous.authorDescription ? authorDescription || previous.authorDescription : previous.authorDescription
+      }))
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
+    let active = true
+    window.addEventListener('wiki-enrichment', listener)
+    queueMicrotask(() => { const data = book.enrichmentKey ? cachedEnrichment(book.enrichmentKey) : undefined; if (active && data) listener(new CustomEvent('wiki-enrichment', { detail: data })) })
+    return () => { active = false; window.removeEventListener('wiki-enrichment', listener) }
+  }, [book.enrichmentKey])
 
   const P = palette(isDark)
   const R = (d = 8, b = 20) => raised(NEUTRAL_RGB, isDark, d, b)
@@ -298,13 +314,13 @@ export default function EditModal({
 
   // Left panel follows the live status choice
   const st =
-    formData.status !== 'All' && statusTheme[formData.status]
+    statusTheme[formData.status]
       ? statusTheme[formData.status]
       : statusTheme.Unread
   const acc = isDark ? st.from : st.to
   const wellL = isDark ? 'rgba(0,0,0,.22)' : `rgba(${st.rgb},.09)`
-  const cover = formData.coverFile || formData.photoUrl || ''
-  const dirty = JSON.stringify(formData) !== JSON.stringify(book)
+  const cover = bookCover(formData)
+  const dirty = JSON.stringify(formData) !== JSON.stringify(book) || tagDraft !== book.tags.join(', ') || collectionDraft !== book.collections.join(', ')
 
   const inputStyle = {
     background: P.well,
@@ -316,6 +332,7 @@ export default function EditModal({
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target
+    dirtyFields.current.add(name)
     let finalValue: string | boolean | number = value
     if (type === 'checkbox') finalValue = (e.target as HTMLInputElement).checked
     else if (type === 'number') finalValue = parseFloat(value) || 0
@@ -337,7 +354,7 @@ export default function EditModal({
       })
       const data = await res.json()
       if (data.success) {
-        setFormData(prev => ({ ...prev, pdfPath: data.path }))
+        setFormData(prev => ({ ...prev, pdfPath: data.path, mediaType: file.name.toLowerCase().endsWith('.epub') ? 'epub' : 'pdf', epubLocation: '', currentPage: 0, totalPages: 0 }))
       } else {
         const { toast: showToast } = await import('../components/Toast')
         showToast(data.error || 'Failed to upload PDF', 'error')
@@ -372,8 +389,9 @@ export default function EditModal({
         background: isDark ? 'rgba(6,8,16,.72)' : 'rgba(40,32,80,.42)',
         backdropFilter: 'blur(14px)'
       }}
+      ref={dialogRef}
       onClick={e => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) close()
       }}
     >
       <div
@@ -416,12 +434,8 @@ export default function EditModal({
               }}
             >
               {cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={cover}
-                  alt="Cover preview"
-                  className="w-full h-full object-cover"
-                />
+
+                <BookCover book={formData} className="w-full h-full object-cover" />
               ) : (
                 <div
                   className="w-full h-full flex flex-col items-center justify-center gap-2"
@@ -553,7 +567,7 @@ export default function EditModal({
               })}
             </div>
             <button
-              onClick={onClose}
+              onClick={close}
               aria-label="Close"
               className="w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center transition-all hover:-translate-y-0.5 active:scale-90"
               style={{
@@ -570,6 +584,13 @@ export default function EditModal({
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-4 sm:px-6 pt-3 pb-6">
             {activeTab === 'edit' ? (
               <div className="flex flex-col gap-6">
+                <Group icon={paths.book} title="Title and author" dark={isDark}>
+                  {(['title', 'author', 'genre', 'volume', 'launchYear', 'publisher', 'yearPublished', 'originalLanguage', 'countryOfOrigin'] as const).map(name => (
+                    <Field key={name} label={name.replace(/([A-Z])/g, ' $1')} dark={isDark}>
+                      <input name={name} required={name === 'title' || name === 'author'} value={formData[name] || ''} onChange={handleChange} className={inputCls} style={inputStyle} />
+                    </Field>
+                  ))}
+                </Group>
                 {/* Cover and rating */}
                 <Group
                   icon={paths.image}
@@ -675,7 +696,7 @@ export default function EditModal({
                       >
                         <option value="None">None</option>
                         <option value="Physical">Physical</option>
-                        <option value="PDF">PDF</option>
+                        <option value="PDF">PDF</option><option value="Ebook">Ebook</option><option value="Kindle">Kindle</option>
                         <option value="Audiobook">Audiobook</option>
                       </SelectBox>
                     </Field>
@@ -711,25 +732,16 @@ export default function EditModal({
                 {/* Ownership */}
                 <Group icon={paths.wallet} title="Ownership" dark={isDark}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Purchased?" dark={isDark}>
-                      <SelectBox
-                        value={formData.purchased.toString()}
-                        onChange={e =>
-                          setFormData(p => ({
-                            ...p,
-                            purchased: e.target.value === 'true'
-                          }))
-                        }
-                        dark={isDark}
-                      >
-                        <option value="false">No (free / gift)</option>
-                        <option value="true">Yes</option>
+                    <Field label="Ownership" dark={isDark}>
+                      <SelectBox value={formData.ownership || (formData.purchased ? 'Purchased' : formData.status === 'Wishlist' ? 'None' : 'Gifted')} onChange={e => setFormData(previous => ({ ...previous, ownership: e.target.value as Book['ownership'], purchased: e.target.value === 'Purchased' }))} dark={isDark}>
+                        {['Purchased', 'Gifted', 'Borrowed', 'None'].map(value => <option key={value}>{value}</option>)}
                       </SelectBox>
                     </Field>
-                    <Field label="Price / invested" dark={isDark}>
+                    <Field label="Currency (ISO code)" dark={isDark}><input name="currency" value={formData.currency || 'INR'} maxLength={3} onChange={handleChange} className={inputCls} style={inputStyle} /></Field>
+                    <Field label="Purchase price" dark={isDark}>
                       <input
                         type="number"
-                        name="purchasePrice"
+                        min="0" step="0.01" name="purchasePrice"
                         value={formData.purchasePrice}
                         onChange={handleChange}
                         disabled={!formData.purchased}
@@ -737,11 +749,14 @@ export default function EditModal({
                         style={inputStyle}
                       />
                     </Field>
+                    <Field label="Total invested" dark={isDark}><input type="number" min="0" step="0.01" name="investedAmount" value={formData.investedAmount} onChange={handleChange} className={inputCls} style={inputStyle} /></Field>
+                    <Field label="Current page" dark={isDark}><input type="number" min="0" name="currentPage" value={formData.currentPage || 0} onChange={handleChange} className={inputCls} style={inputStyle} /></Field>
+                    <Field label="Total pages" dark={isDark}><input type="number" min="0" name="totalPages" value={formData.totalPages || 0} onChange={handleChange} className={inputCls} style={inputStyle} /></Field>
                     <Field label="Physical shelf / row" dark={isDark}>
                       <input
                         type="text"
-                        name="shelfRow"
-                        value={formData.shelfRow || ''}
+                        name="shelfLocation"
+                        value={formData.shelfLocation || ''}
                         onChange={handleChange}
                         placeholder="e.g. Shelf A, Row 2"
                         className={inputCls}
@@ -780,34 +795,21 @@ export default function EditModal({
                   dark={isDark}
                   tint="245,158,11"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Loaned to" dark={isDark}>
-                      <input
-                        type="text"
-                        name="givenTo"
-                        value={formData.givenTo || ''}
-                        onChange={handleChange}
-                        placeholder="Person's name"
-                        className={inputCls}
-                        style={inputStyle}
-                      />
-                    </Field>
-                    <Field label="Loan date" dark={isDark}>
-                      <input
-                        type="date"
-                        name="loanDate"
-                        value={formData.loanDate || ''}
-                        onChange={handleChange}
-                        className={inputCls}
-                        style={{
-                          ...inputStyle,
-                          colorScheme: isDark ? 'dark' : 'light'
-                        }}
-                      />
-                    </Field>
-                  </div>
+                  {activeLoan ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Borrower" dark={isDark}><input value={activeLoan.borrowerName} onChange={event => changeLoan({ borrowerName: event.target.value })} className={inputCls} style={inputStyle} /></Field>
+                    <Field label="Lent on" dark={isDark}><input type="date" value={activeLoan.dateLent} onChange={event => changeLoan({ dateLent: event.target.value })} className={inputCls} style={inputStyle} /></Field>
+                    <Field label="Due date / renew until" dark={isDark}><input type="date" value={activeLoan.expectedReturnDate || ''} min={activeLoan.dateLent} onChange={event => changeLoan({ expectedReturnDate: event.target.value || null })} className={inputCls} style={inputStyle} /></Field>
+                    <Field label="Loan notes" dark={isDark}><input value={activeLoan.notes} onChange={event => changeLoan({ notes: event.target.value })} className={inputCls} style={inputStyle} /></Field>
+                    <button type="button" onClick={() => changeLoan({ dateReturned: localToday() })} className={inputCls} style={inputStyle}>Record return today</button>
+                  </div> : <button type="button" disabled={formData.format !== 'Physical' || !['Purchased', 'Gifted'].includes(formData.ownership || (formData.purchased ? 'Purchased' : 'Gifted'))} onClick={() => setFormData(previous => ({ ...previous, loans: [...previous.loans, { id: crypto.randomUUID(), borrowerName: '', dateLent: localToday(), expectedReturnDate: null, dateReturned: null, notes: '' }] }))} className={inputCls} style={inputStyle}>Lend this physical copy</button>}
+                  {formData.loans.filter(loan => loan.dateReturned).map(loan => <p key={loan.id} className="text-sm" style={{ color: P.body }}>{loan.borrowerName}: {loan.dateLent} → returned {loan.dateReturned}</p>)}
                 </Group>
 
+                <Group icon={paths.doc} title="Organization" dark={isDark}>
+                  <Field label="Tags (comma separated)" dark={isDark}><input value={tagDraft} onChange={event => setTagDraft(event.target.value)} className={inputCls} style={inputStyle} /></Field>
+                  <Field label="Collections (comma separated)" dark={isDark}><input value={collectionDraft} onChange={event => setCollectionDraft(event.target.value)} className={inputCls} style={inputStyle} /></Field>
+                  <Field label="Condition" dark={isDark}><SelectBox name="condition" value={formData.condition} onChange={handleChange} dark={isDark}>{['New', 'Good', 'Worn', 'Damaged'].map(value => <option key={value}>{value}</option>)}</SelectBox></Field>
+                </Group>
                 {/* Notes */}
                 <Group icon={paths.edit} title="My notes" dark={isDark}>
                   <Field label="Notes / summary" dark={isDark}>
@@ -823,6 +825,10 @@ export default function EditModal({
                   </Field>
                 </Group>
 
+                <Group icon={paths.edit} title="Review and private notes" dark={isDark}>
+                  <Field label="My review" dark={isDark}><textarea name="myReview" value={formData.myReview || ''} onChange={handleChange} rows={3} className={inputCls} style={inputStyle} /></Field>
+                  <Field label="Private notes" dark={isDark}><textarea name="privateNotes" value={formData.privateNotes || ''} onChange={handleChange} rows={3} className={inputCls} style={inputStyle} /></Field>
+                </Group>
                 {/* Favourite quotes */}
                 <Group
                   icon={paths.quotes}
@@ -897,14 +903,14 @@ export default function EditModal({
               <div className="flex flex-col gap-6">
                 <Group
                   icon={paths.pdf}
-                  title="Digital PDF reader"
+                  title="PDF / EPUB reader"
                   dark={isDark}
                 >
                   <p
                     className="text-[13px] leading-relaxed"
                     style={{ color: P.faint }}
                   >
-                    Attach a PDF to read this book inside the app and track
+                    Attach a PDF or EPUB to read this book inside the app and track
                     pages and sessions.
                   </p>
 
@@ -947,7 +953,7 @@ export default function EditModal({
                       ) : (
                         <>
                           <Icon d={paths.upload} className="w-4 h-4" />
-                          {formData.pdfPath ? 'Replace PDF' : 'Choose PDF'}
+                          {formData.pdfPath ? 'Replace ebook' : 'Choose PDF or EPUB'}
                         </>
                       )}
                     </label>
@@ -979,7 +985,7 @@ export default function EditModal({
                             className="text-xs font-bold truncate"
                             style={{ color: P.title }}
                           >
-                            PDF attached
+                            Ebook attached
                           </p>
                           <p
                             className="text-[11px] truncate"
@@ -997,7 +1003,8 @@ export default function EditModal({
                             pdfPath: undefined,
                             currentPage: undefined,
                             totalPages: undefined,
-                            readingSessions: []
+                            epubLocation: undefined,
+                            mediaType: undefined
                           }))
                         }
                         className="shrink-0 flex items-center gap-1.5 text-[11px] font-bold px-3.5 py-2 rounded-full transition-all hover:-translate-y-0.5 active:scale-95"
@@ -1057,6 +1064,7 @@ export default function EditModal({
             )}
           </div>
 
+          {error && <p role="alert" className="px-6 py-3 text-sm text-red-600">{error}</p>}
           {/* ── Footer ── */}
           <div
             className="px-4 sm:px-6 py-4 flex items-center justify-between gap-3 shrink-0"
@@ -1080,7 +1088,7 @@ export default function EditModal({
             </span>
             <div className="flex gap-3 ml-auto">
               <button
-                onClick={onClose}
+                onClick={close}
                 className="px-6 py-2.5 text-sm font-bold rounded-full transition-all hover:-translate-y-0.5 active:scale-95"
                 style={{
                   background: P.panel,
@@ -1091,11 +1099,12 @@ export default function EditModal({
                 Cancel
               </button>
               <button
-                onClick={() => onSave(formData)}
+                onClick={() => void save()}
+                disabled={saving || uploadingPdf}
                 className="px-7 py-2.5 text-sm font-bold rounded-full transition-all hover:-translate-y-0.5 active:scale-[0.98]"
                 style={primaryFill(isDark)}
               >
-                Save changes
+                {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </div>

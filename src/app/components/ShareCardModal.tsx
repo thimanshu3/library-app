@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { toPng } from 'html-to-image'
+import { bookCover } from '@/lib/book-cover'
+import { useDialog } from '../hooks/use-dialog'
 import { Book } from '../types'
 
 export default function ShareCardModal({
@@ -11,13 +12,18 @@ export default function ShareCardModal({
   book: Book
   onClose: () => void
 }) {
+  const dialogRef = useDialog(onClose)
+  const [error, setError] = useState('')
   const cardRef = useRef<HTMLDivElement>(null)
   const [downloading, setDownloading] = useState(false)
 
   const handleDownload = async () => {
     if (!cardRef.current) return
     try {
-      setDownloading(true)
+      setDownloading(true); setError('')
+      const { toPng } = await import('html-to-image')
+      const images = Array.from(cardRef.current.querySelectorAll('img'))
+      await Promise.all(images.map(image => image.decode()))
       // We scale it up 2x for retina quality
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
       
@@ -26,23 +32,22 @@ export default function ShareCardModal({
       link.href = dataUrl
       link.click()
     } catch (err) {
-      console.error('Failed to generate image', err)
+      setError(err instanceof Error ? 'Unable to generate the card. Check the cover image and retry.' : 'Unable to download. Please retry.')
     } finally {
       setDownloading(false)
     }
   }
 
   const quote = book.quotes && book.quotes.length > 0 ? book.quotes[0].text : book.summary
-  const cover = book.coverFile
-    ? `/covers/${book.coverFile}`
-    : book.photoUrl || '/placeholder.jpg'
+  const source = bookCover(book)
+  const cover = source.startsWith('https:') ? `/api/cover?url=${encodeURIComponent(source)}` : source
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 rounded-[2.5rem] p-6 max-w-sm w-full relative flex flex-col items-center">
+    <div ref={dialogRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 rounded-[2.5rem] p-6 max-w-sm w-full max-h-[95dvh] overflow-y-auto relative flex flex-col items-center">
         {/* Close Button */}
         <button
-          onClick={onClose}
+          aria-label="Close share preview" onClick={onClose}
           className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/20 transition-all"
         >
           ✕
@@ -53,7 +58,7 @@ export default function ShareCardModal({
         {/* The Card to be captured */}
         <div 
           ref={cardRef} 
-          className="w-[320px] h-[568px] relative rounded-[2rem] overflow-hidden flex flex-col items-center justify-center p-8 text-center shadow-2xl"
+          className="w-[min(320px,100%)] h-[568px] shrink-0 relative rounded-[2rem] overflow-hidden flex flex-col items-center justify-center p-8 text-center shadow-2xl"
           style={{
             background: 'linear-gradient(145deg, #1e1e2f 0%, #12121a 100%)',
           }}
@@ -62,14 +67,9 @@ export default function ShareCardModal({
           <div className="absolute -top-20 -left-20 w-64 h-64 bg-accent/30 rounded-full blur-[80px]" />
           <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-secondary/30 rounded-full blur-[80px]" />
 
-          <div 
-            className="w-32 h-48 rounded-xl shadow-2xl mb-6 relative z-10"
-            style={{
-              backgroundImage: `url(${cover})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          />
+          {/* Private same-origin image is captured by html-to-image. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={cover} alt={`${book.title} cover`} width="128" height="192" className="w-32 h-48 rounded-xl shadow-2xl mb-6 relative z-10 object-cover" />
 
           <h3 className="text-white font-black text-xl leading-tight mb-2 z-10 tracking-tight">
             {book.title}
@@ -99,6 +99,7 @@ export default function ShareCardModal({
           </div>
         </div>
 
+        {error && <p role="alert" className="text-red-300 mt-4">{error}</p>}
         <button
           onClick={handleDownload}
           disabled={downloading}

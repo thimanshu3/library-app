@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BrowserMultiFormatReader } from '@zxing/browser';
+import { useDialog } from '../hooks/use-dialog';
+import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 
 export default function BarcodeScanner({ onScan, onClose }: { onScan: (result: string) => void, onClose: () => void }) {
+  const dialogRef = useDialog(onClose);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const codeReader = new BrowserMultiFormatReader();
-    let controls: any;
+    let controls: IScannerControls | undefined;
+    let cancelled = false;
 
     const startScanner = async () => {
       try {
@@ -22,12 +25,13 @@ export default function BarcodeScanner({ onScan, onClose }: { onScan: (result: s
         // Prefer rear camera if available
         const deviceId = videoInputDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'))?.deviceId || videoInputDevices[0].deviceId;
 
-        controls = await codeReader.decodeFromVideoDevice(deviceId, videoRef.current!, (result, error) => {
+        controls = await codeReader.decodeFromVideoDevice(deviceId, videoRef.current!, (result) => {
           if (result) {
-            onScan(result.getText());
+            if (!cancelled) onScan(result.getText());
             if (controls) controls.stop();
           }
         });
+        if (cancelled) controls.stop();
       } catch (err) {
         console.error(err);
         setError('Failed to start camera. Please ensure permissions are granted.');
@@ -37,6 +41,7 @@ export default function BarcodeScanner({ onScan, onClose }: { onScan: (result: s
     startScanner();
 
     return () => {
+      cancelled = true;
       if (controls) {
         controls.stop();
       }
@@ -44,11 +49,11 @@ export default function BarcodeScanner({ onScan, onClose }: { onScan: (result: s
   }, [onScan]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div ref={dialogRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-neutral-900 rounded-3xl overflow-hidden shadow-2xl relative w-full max-w-sm border border-white/10">
         <div className="p-4 flex justify-between items-center border-b border-white/10 bg-neutral-800">
           <h3 className="text-white font-bold text-sm">Scan Barcode / ISBN</h3>
-          <button onClick={onClose} className="text-white/60 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors">
+          <button aria-label="Close barcode scanner" onClick={onClose} className="text-white/60 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>

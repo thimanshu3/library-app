@@ -1,13 +1,11 @@
+import { unstable_rethrow } from 'next/navigation'
 import 'server-only'
 
-export class HttpError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message)
-    this.name = 'HttpError'
-  }
-}
+import { HttpError } from './errors'
+export { HttpError } from './errors'
 
 export function errorResponse(error: unknown, fallback: string): Response {
+  unstable_rethrow(error)
   if (error instanceof HttpError) {
     return Response.json({ success: false, error: error.message }, {
       status: error.status,

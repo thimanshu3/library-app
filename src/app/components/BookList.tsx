@@ -1,4 +1,5 @@
 'use client'
+import BookCover from './BookCover'
 
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import {
@@ -10,10 +11,10 @@ import {
   raised,
   statusTheme
 } from '../clay'
+import { progressPercent } from '@/lib/library-domain'
 import { Book } from '../types'
 
 // Change to match your currency
-const CURRENCY = '₹'
 
 // Extra Work/Copy fields, typed loosely so this compiles even if `Book` lacks them
 type Extra = Partial<{
@@ -233,12 +234,12 @@ export default function BookListCard({
   const dark = isDark
   const P = palette(dark)
   const statusKey =
-    book.status !== 'All' && statusTheme[book.status] ? book.status : 'Unread'
+    statusTheme[book.status] ? book.status : 'Unread'
   const st = statusTheme[statusKey]
   const acc = dark ? st.from : st.to
   const wellBg = dark ? 'rgba(0,0,0,.22)' : `rgba(${st.rgb},.08)`
 
-  const cover = book.coverFile || book.photoUrl || ''
+  const cover = !!(book.coverFile || book.photoUrl)
   const totalPages = book.totalPages || b.pageCount || 0
   const year = book.launchYear || b.originalPublicationYear || b.yearPublished
   const rating = Math.max(0, Math.min(5, book.rating || 0))
@@ -261,29 +262,14 @@ export default function BookListCard({
   const volumeLabel =
     book.volume || (seriesObj?.number ? String(seriesObj.number) : '')
 
-  // Reading progress
-  let progress = -1
-  if (statusKey === 'Read') {
-    progress = 100
-  } else if (statusKey === 'Reading') {
-    if (book.currentPage && totalPages > 0) {
-      progress = Math.min(99, Math.round((book.currentPage / totalPages) * 100))
-    } else if (book.readingStartDate) {
-      const hoursNum =
-        parseFloat(book.hours?.replace(/[^0-9.]/g, '') || '0') || 8
-      // eslint-disable-next-line react-hooks/purity
-      const elapsed =
-        (Date.now() - new Date(book.readingStartDate).getTime()) / (1000 * 3600)
-      progress = Math.min(95, Math.round((elapsed / hoursNum) * 100))
-    }
-  }
+  const progress = progressPercent(book) ?? -1
   const lastRead = timeAgo(b.lastReadTimestamp)
   const progressLabel =
     statusKey === 'Read'
       ? 'Finished'
-      : book.currentPage && totalPages > 0
+      : book.currentPage != null && totalPages > 0
         ? `Page ${book.currentPage} of ${totalPages}`
-        : 'In progress (estimated)'
+        : 'Progress unknown'
 
   // Fact chips
   type FactT = { title: string; text: string; icon?: string }
@@ -305,7 +291,7 @@ export default function BookListCard({
     fact(
       'Paid',
       book.purchased && (book.purchasePrice || 0) > 0
-        ? `${CURRENCY}${(book.purchasePrice || 0).toFixed(0)}`
+        ? new Intl.NumberFormat(undefined, { style: 'currency', currency: book.currency || 'INR' }).format(book.purchasePrice || 0)
         : ''
     )
   ]
@@ -364,6 +350,7 @@ export default function BookListCard({
     <div
       role="button"
       tabIndex={0}
+      aria-label={`View ${book.title}`}
       onClick={activate}
       onKeyDown={onKey}
       style={cardStyle}
@@ -422,12 +409,7 @@ export default function BookListCard({
           <div
             aria-hidden="true"
             className="absolute inset-0 scale-125 blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-700"
-            style={{
-              backgroundImage: `url(${cover})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          />
+          ><BookCover book={book} decorative className="h-full w-full object-cover" /></div>
         )}
         <div
           className="relative w-[84px] sm:w-[132px] aspect-[2/3] rounded-xl sm:rounded-2xl overflow-hidden -rotate-2 group-hover:rotate-0 group-hover:scale-[1.04] transition-transform duration-500 ease-out"
@@ -437,14 +419,8 @@ export default function BookListCard({
           }}
         >
           {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover}
-              alt={book.title}
-              loading="lazy"
-              decoding="async"
-              className="w-full h-full object-cover"
-            />
+
+            <BookCover book={book} className="w-full h-full object-cover" />
           ) : (
             <div
               className="w-full h-full flex flex-col items-center justify-center gap-1.5"
@@ -596,7 +572,7 @@ export default function BookListCard({
               <div
                 className="h-full rounded-full transition-[width] duration-700"
                 style={{
-                  width: `${Math.max(progress, 8)}%`,
+                  width: `${progress}%`,
                   background: `linear-gradient(90deg, ${st.from}, ${st.to})`,
                   boxShadow: `inset 0 2px 3px rgba(255,255,255,.5), 0 2px 6px rgba(${st.rgb},.45)`
                 }}
@@ -635,7 +611,7 @@ export default function BookListCard({
                 Loaned
                 {typeof book.givenTo === 'string' ? ` to ${book.givenTo}` : ''}
               </Tag>
-            ) : book.purchased ? (
+            ) : ['Purchased', 'Gifted'].includes(book.ownership || (book.purchased ? 'Purchased' : 'None')) ? (
               <Tag
                 dark={dark}
                 rgb="16,185,129"

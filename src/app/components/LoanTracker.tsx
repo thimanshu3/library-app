@@ -1,6 +1,9 @@
 'use client'
+import { localToday, calendarDaysBetween } from '@/lib/library-domain'
+import { useNow } from '../hooks/use-now'
 
-import { useState } from 'react'
+import { useTheme } from '../hooks/use-theme'
+import BookCover from './BookCover'
 import { Book } from '../types'
 import { clayFill, palette, pressed, raised } from '../clay'
 
@@ -8,6 +11,7 @@ const formatDate = (d?: string) => {
   if (!d) return null
   try {
     return new Date(d).toLocaleDateString('en-US', {
+      timeZone: 'UTC',
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -17,11 +21,6 @@ const formatDate = (d?: string) => {
   }
 }
 
-const getDaysOut = (loanDate?: string): number | null => {
-  if (!loanDate) return null
-  const diff = Date.now() - new Date(loanDate).getTime()
-  return Math.floor(diff / (1000 * 60 * 60 * 24))
-}
 
 export default function LoanTracker({
   books,
@@ -30,10 +29,8 @@ export default function LoanTracker({
   books: Book[]
   onEdit: (b: Book) => void
 }) {
-  const [isDark] = useState(() =>
-    typeof document !== 'undefined' &&
-    document.documentElement.classList.contains('dark')
-  )
+  useNow()
+  const isDark = useTheme()
   const P = palette(isDark)
   const R = (d = 8, b = 22) => raised('140,120,100', isDark, d, b)
   const Pr = (d = 4, b = 10) => pressed('140,120,100', isDark, d, b)
@@ -79,8 +76,8 @@ export default function LoanTracker({
   const overdueCount = loanedBooks.filter(book => {
     const l = book.loans.find(l => !l.dateReturned)
     if (!l) return false
-    if (l.expectedReturnDate) return Date.now() > new Date(l.expectedReturnDate).getTime()
-    const d = getDaysOut(l.dateLent)
+    if (l.expectedReturnDate) return localToday() > l.expectedReturnDate
+    const d = calendarDaysBetween(l.dateLent)
     return d !== null && d > 30
   }).length
 
@@ -134,21 +131,18 @@ export default function LoanTracker({
           const activeLoan = book.loans.find(l => !l.dateReturned)
           if (!activeLoan) return null
 
-          const daysOut = getDaysOut(activeLoan.dateLent)
+          const daysOut = calendarDaysBetween(activeLoan.dateLent)
           const loanDateStr = formatDate(activeLoan.dateLent)
 
           let isOverdue = false
           let dueStr = ''
           if (activeLoan.expectedReturnDate) {
-            const dueDate = new Date(activeLoan.expectedReturnDate).getTime()
-            if (Date.now() > dueDate) {
+            if (localToday() > activeLoan.expectedReturnDate) {
               isOverdue = true
               dueStr = 'Past due'
             } else {
-              const diffDays = Math.ceil(
-                (dueDate - Date.now()) / (1000 * 60 * 60 * 24)
-              )
-              dueStr = `Due in ${diffDays}d`
+              const diffDays = calendarDaysBetween(localToday(), activeLoan.expectedReturnDate)
+              dueStr = diffDays === 0 ? 'Due today' : `Due in ${diffDays}d`
             }
           } else {
             isOverdue = daysOut !== null && daysOut > 30
@@ -161,6 +155,8 @@ export default function LoanTracker({
           return (
             <div
               key={book.id}
+              role="button" tabIndex={0} aria-label={`Manage loan for ${book.title}`}
+              onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit(book) } }}
               onClick={() => onEdit(book)}
               className="flex flex-col gap-4 p-4 rounded-[24px] cursor-pointer transition-all duration-300 hover:-translate-y-1 active:scale-[0.99] animate-slide-up group"
               style={{
@@ -176,12 +172,7 @@ export default function LoanTracker({
                   style={{ boxShadow: '3px 5px 12px rgba(0,0,0,.25)' }}
                 >
                   {book.coverFile || book.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={book.coverFile || book.photoUrl}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                    />
+                    <BookCover book={book} className="w-full h-full object-cover" />
                   ) : (
                     <div
                       className="w-full h-full flex items-center justify-center text-[9px] font-bold"

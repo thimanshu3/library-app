@@ -2,40 +2,28 @@
 
 import { useState } from 'react'
 import { Book } from '../types'
+import { activityByDay, completionDates, dateKey } from '@/lib/library-domain'
+import { useDialog } from '../hooks/use-dialog'
 import { differenceInDays } from 'date-fns'
 
 export default function ReadingWrappedModal({
   books,
   onClose,
-  isDark
+  isDark: _isDark
 }: {
   books: Book[]
   onClose: () => void
   isDark: boolean
 }) {
+  void _isDark
+  const dialogRef = useDialog(onClose)
   const [slide, setSlide] = useState(0)
   
   const currentYear = new Date().getFullYear()
 
-  // Books read this year
-  const readThisYear = books.filter(b => 
-    b.status === 'Read' && 
-    b.readingEndDate && 
-    b.readingEndDate.startsWith(currentYear.toString())
-  )
-
-  const numBooks = readThisYear.length
-
-  // Calculate hours
-  let totalHours = 0
-  readThisYear.forEach(b => {
-    if (b.hours) {
-      const h = parseInt(b.hours.replace(/[^0-9]/g, ''))
-      if (!isNaN(h)) totalHours += h
-    } else if (b.totalPages) {
-      totalHours += Math.ceil(b.totalPages / 40)
-    }
-  })
+  const readThisYear = books.filter(book => completionDates(book).some(date => date.startsWith(String(currentYear))))
+  const numBooks = books.flatMap(completionDates).filter(date => date.startsWith(String(currentYear))).length
+  const totalHours = Math.round(books.flatMap(book => book.readingSessions).filter(session => dateKey(session.date)?.startsWith(String(currentYear))).reduce((sum, session) => sum + session.durationMinutes, 0) / 60 * 10) / 10
 
   // Top Genre
   const genreCount: Record<string, number> = {}
@@ -46,25 +34,7 @@ export default function ReadingWrappedModal({
     ? Object.entries(genreCount).reduce((a, b) => a[1] > b[1] ? a : b)[0]
     : 'None'
 
-  // Longest streak
-  const readDates: Date[] = []
-  books.forEach(b => {
-    if (b.readingEndDate && b.readingEndDate.startsWith(currentYear.toString())) {
-      readDates.push(new Date(b.readingEndDate))
-    }
-    if (b.readingSessions) {
-      b.readingSessions.forEach(s => {
-        if (s.date && s.date.startsWith(currentYear.toString())) {
-          readDates.push(new Date(s.date))
-        }
-      })
-    }
-  })
-  
-  // Sort and deduplicate dates
-  const uniqueSortedDates = Array.from(new Set(readDates.map(d => d.toISOString().split('T')[0])))
-    .map(d => new Date(d))
-    .sort((a, b) => a.getTime() - b.getTime())
+  const uniqueSortedDates = [...activityByDay(books).keys()].filter(date => date.startsWith(String(currentYear))).sort().map(date => new Date(date + 'T00:00:00Z'))
 
   let maxStreak = 0
   let currentStreak = 0
@@ -94,14 +64,14 @@ export default function ReadingWrappedModal({
       color: '#ec4899'
     },
     {
-      title: `${numBooks} Books`,
+      title: `${numBooks} Completions`,
       content: numBooks > 0 ? 'That\'s a lot of pages turned!' : 'A quiet year for reading.',
       icon: '📚',
       color: '#34d399'
     },
     {
       title: `${totalHours} Hours`,
-      content: 'Spent immersed in other worlds.',
+      content: 'Measured reading time from saved sessions.',
       icon: '⏳',
       color: '#f59e0b'
     },
@@ -120,7 +90,7 @@ export default function ReadingWrappedModal({
   ]
 
   return (
-    <div
+    <div ref={dialogRef}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in"
       style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)' }}
       onClick={e => {

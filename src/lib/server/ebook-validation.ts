@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { fromBuffer, type Entry, type ZipFile } from 'yauzl'
-import { HttpError } from './http'
+import { HttpError } from './errors'
 
 export const MAX_EBOOK_BYTES = 32 * 1024 * 1024
 const MAX_EXPANDED_BYTES = 128 * 1024 * 1024

@@ -8,6 +8,8 @@ export interface LoanRecord {
 }
 
 export interface ReadingSession {
+  id?: string;
+  observedAt?: string;
   date: string;
   durationMinutes: number;
   startPage: number;
@@ -23,13 +25,13 @@ export interface Quote {
 export interface BookCopy {
   id: string;
   workId: string;
-  format: 'Physical' | 'Ebook' | 'Audiobook' | string;
-  condition: 'New' | 'Good' | 'Worn' | 'Damaged' | string;
+  format: string;
+  condition: string;
   shelfLocation: string;
   purchased: boolean;
   purchasePrice: number;
   investedAmount: number;
-  status: 'Unread' | 'Reading' | 'Read' | 'Wishlist' | 'On Loan' | string;
+  status: ReadingStatus;
   pdfPath?: string;
   currentPage?: number;
   totalPages?: number;
@@ -132,7 +134,7 @@ export interface JoinedBook {
   purchased: boolean;
   purchasePrice: number;
   investedAmount: number;
-  status: string;
+  status: ReadingStatus;
   pdfPath?: string;
   currentPage?: number;
   totalPages?: number;
@@ -159,6 +161,22 @@ export interface JoinedBook {
   readingEndDate?: string;
   givenTo?: string;
   loanDate?: string;
+  editionId?: string;
+  revision?: number;
+  workRevision?: number;
+  ownership?: Ownership;
+  currency?: string;
+  epubLocation?: string;
+  mediaType?: 'pdf' | 'epub';
+  offerPrice?: number | null;
+  offerCurrency?: string | null;
+  offerCheckedAt?: string | null;
+  offerSource?: string | null;
+  enrichmentKey?: string;
+  createToken?: string;
 }
+
+export type ReadingStatus = 'Unread' | 'Reading' | 'Read' | 'Wishlist';
+export type Ownership = 'Purchased' | 'Gifted' | 'Borrowed' | 'None';
 
 export type Book = JoinedBook;

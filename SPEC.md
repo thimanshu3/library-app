@@ -1,28 +1,46 @@
-# Library App - Project Specification & Task Tracker
+# TaleTeacup — implemented scope and follow-up ideas
 
-## Phase 1 & 2: Core Library Management (Completed)
-- [x] Data models for Books (Works & Copies)
-- [x] Basic CRUD (Add, Edit, View, Delete books)
-- [x] Search across Title, Author, Genre, ISBN
-- [x] Core Filters (Status, Format, Purchase Status, Year, Genre, Author, Volume)
-- [x] Reading Session Tracking & Timer
-- [x] Reading Heatmap visualization
-- [x] Dashboard with basic analytics and investment tracking
-- [x] Quote saving functionality
-- [x] Shareable cards generator
+The historical audit is in `docs/codebase-audit-2026-10-05.md`. Current disposition and verification are in `docs/codebase-audit-backlog-2026-10-05.csv` and `docs/audit-fixes-2026-10-05.md`.
 
-## Priority Fixes & Tech Debt (Current)
-- [x] **Fix Metadata Mismatches:** Audit existing metadata matching logic. Specifically, the fallback Wikipedia API fetch in `AddBookModal.tsx` queries strictly by title, causing completely unrelated books to match. Update this to match by ISBN first, falling back to title+author only when ISBN is missing.
-- [ ] **Secure PDF Storage:** Currently, `api/upload-pdf` saves files to a local public path (`public/pdfs`), which exposes uploaded books to anyone with the URL. Migrate this to a **private** bucket (e.g., Supabase storage) and use server-generated, short-lived signed URLs for the PDF reader.
+## Implemented library workflows
 
-## Phase 3: Missing Core Features
-- [ ] **Barcode/ISBN Camera Scanning:** Implement quick-add functionality using device camera to scan ISBNs.
-- [x] **Duplicate-Check on Add:** Add a warning ("You already own this") when trying to add a book that's already in the library.
-- [x] **Import/Export Data Portability:** Build CSV/JSON export and allow imports (especially a Goodreads CSV import tool) to avoid vendor lock-in.
-- [x] **Overdue-Loan Visibility:** Enhance the Loan Tracker to explicitly highlight overdue books and display a reminder/notification when a due date passes.
-- [x] **"Read Next From My Shelf" Suggester:** Implement a smart picker that suggests an unread book from the existing library.
-- [x] **Physical Location Filter:** Surface the `shelfLocation` field as an active filter in the UI (not just stored data).
+- [x] One private owner account; authenticated data, actions, uploads, searches, and downloads.
+- [x] Work / Edition / Copy models; independent ownership, reading state, lending, and costs.
+- [x] Manual add, metadata editing, canonical shelves, explicit copy deletion, and revision conflicts.
+- [x] Search and database pagination; matching desktop/mobile status, format, ownership, year, genre, author, volume, and shelf filters.
+- [x] ISBN search and camera barcode scanning; complete-library duplicate warnings.
+- [x] Keyed enrichment that preserves edited draft fields.
+- [x] Typed reading dates, completion history, configurable annual goal, and recorded-time analytics.
+- [x] Physical reading timer, PDF page resume, EPUB CFI resume, and recoverable reader checkpoints.
+- [x] Due dates, renewals, returns, and persistent lending history.
+- [x] Full-library JSON/CSV export, bounded merge imports, Goodreads CSV mapping, and row error reports.
+- [x] Tags, collections, quotes, reviews, and private notes in the editor.
+- [x] Reading heatmap, annual Wrapped, share-card export, and an available owned unread shelf picker.
+- [x] Price offers kept separate from acquisition cost and currency.
+- [x] Private local/S3 storage, authenticated byte ranges, and reference-aware delayed cleanup.
+- [x] Versioned migrations, repeatable legacy-history migration, checksum backups, and fresh-database restore.
+- [x] Lazy optional client features, responsive covers, bundled PDF worker, live theme, and reduced motion.
+- [x] Dialog focus handling, form labels, keyboard card access, mobile shelf filtering, and announced errors/status.
+- [x] CI for frozen installation, types, lint, build, and production dependency audit.
 
-## Phase 4: Enhancements & New Ideas
-- [x] **"Reading Wrapped" Annual Summary:** Leverage existing data (reading timer, sessions, heatmap, shareable cards) to generate an end-of-year personalized "Reading Wrapped" card (total hours, books finished, longest streak, genre breakdown).
-- [x] **ePub Support:** (Deferred per earlier discussions) Support parsing and reading ePub files natively.
+## Deployment/account follow-up
+
+- [ ] Rotate/restrict the previously published Google Books key in Google Cloud.
+- [ ] Provision and exercise the production private bucket or persistent volume, and off-device backup storage.
+- [ ] Schedule attachment cleanup/backups and configure a shared limiter if deploying multiple instances.
+- [ ] Replace the temporary development-only braces patch when a compatible upstream fixed release exists.
+- [ ] Extend regression test coverage when the owner resumes test work. No new test cases were requested for these completion batches.
+
+## Recommended new features
+
+These remain suggestions, not unfinished implementations promised by the audit repair.
+
+1. Saved shelves and reusable compound filters.
+2. DNF reading attempts and richer reread goals; the current annual goal and completed spans already persist.
+3. Copy QR labels and a shelf locator for moving/lending physical items.
+4. Purchase ledger with seller/date and private receipt attachments.
+5. A searchable cross-book quote notebook with optional OCR capture.
+6. Edition-aware duplicate tools and series completion/missing-volume views.
+7. An installable offline companion with explicit synchronization/conflict handling.
+8. Household accounts with roles and independent reader history; the owner chose one private account for this release.
+9. Explainable read-next recommendations beyond the current shelf picker.

@@ -32,7 +32,9 @@ export default function DashboardStats({ books }: { books: Book[] }) {
   const read = books.filter(b => b.status === 'Read').length
   const reading = books.filter(b => b.status === 'Reading').length
   const pct = total > 0 ? Math.round((read / total) * 100) : 0
-  const totalInvested = books.reduce((acc, b) => acc + (b.purchasePrice || 0), 0)
+  const amounts = new Map<string, number>()
+  books.forEach(book => amounts.set(book.currency || 'INR', (amounts.get(book.currency || 'INR') || 0) + book.investedAmount))
+  const investment = [...amounts].filter(([, amount]) => amount > 0).map(([currency, amount]) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)).join(' · ')
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -54,10 +56,10 @@ export default function DashboardStats({ books }: { books: Book[] }) {
         value={`${pct}%`}
         dotColor="bg-accent"
       />
-      {totalInvested > 0 && (
+      {investment && (
         <StatChip
           label="Invested"
-          value={`₹${Math.round(totalInvested).toLocaleString()}`}
+          value={investment}
         />
       )}
     </div>
