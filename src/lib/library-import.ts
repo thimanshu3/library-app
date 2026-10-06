@@ -1,8 +1,13 @@
 import type { Book } from '@/app/types'
 import { blankBook } from '@/app/components/LibraryShared'
-import { dateKey } from './library-domain'
+import { dateKey, ownershipOf } from './library-domain'
 
 export type ImportRecord = { row: number; book?: Partial<Book>; error?: string }
+
+function importedBook(book: Partial<Book>): Book {
+  const ownership = ownershipOf(book)
+  return { ...blankBook(), ...book, ownership, purchased: ownership === 'Purchased' }
+}
 
 function csvBook(row: Record<string, string>): Partial<Book> {
   if (row.record) return JSON.parse(row.record)
@@ -29,8 +34,8 @@ function csvBook(row: Record<string, string>): Partial<Book> {
     exclusiveShelf: get('Exclusive Shelf') || null, myReview: get('My Review') || null,
     spoiler: get('Spoiler') || null, privateNotes: get('Private Notes') || null, readCount: numeric('Read Count'),
     summary: get('summary'), readingEndDate: dateKey(get('readingEndDate', 'Date Read')) || '',
-    purchased: get('purchased') ? get('purchased') === 'true' : mappedStatus !== 'Wishlist',
-    ownership: get('ownership') as Book['ownership'] || (mappedStatus === 'Wishlist' ? 'None' : 'Purchased'),
+    purchased: get('purchased').toLowerCase() === 'true',
+    ownership: get('ownership') as Book['ownership'] || undefined,
     currency: get('currency') || 'INR'
   }
   return book
@@ -42,7 +47,7 @@ export async function parseLibraryFile(file: File): Promise<{ records: ImportRec
     const data = JSON.parse(await file.text())
     const rows = Array.isArray(data) ? data : Array.isArray(data.works) && Array.isArray(data.copies) ? data.copies.map((copy: Partial<Book>) => ({ ...data.works.find((work: { id: string }) => work.id === copy.workId), ...copy, workId: copy.workId })) : data.books
     if (!Array.isArray(rows)) throw new Error('Choose a library JSON export containing a books array.')
-    return { records: rows.map((book, index) => !book || typeof book !== 'object' || Array.isArray(book) ? { row: index + 1, error: 'Invalid book record.' } : { row: index + 1, book: { ...blankBook(), ...book } }),
+    return { records: rows.map((book, index) => !book || typeof book !== 'object' || Array.isArray(book) ? { row: index + 1, error: 'Invalid book record.' } : { row: index + 1, book: importedBook(book) }),
       annualGoal: !Array.isArray(data) && Number.isInteger(data.annualGoal) ? data.annualGoal : undefined }
   }
   if (!/\.csv$/i.test(file.name)) throw new Error('Choose a JSON or CSV library export.')
@@ -52,7 +57,7 @@ export async function parseLibraryFile(file: File): Promise<{ records: ImportRec
   })
   const records = result.data.map((row, index): ImportRecord => {
     try {
-      const book = { ...blankBook(), ...csvBook(row) }
+      const book = importedBook(csvBook(row))
       if (!book.title.trim()) throw new Error('The title is missing.')
       return { row: index + 2, book }
     } catch (error) { return { row: index + 2, error: error instanceof Error ? error.message : 'Invalid row.' } }

@@ -17,7 +17,7 @@ import { cachedEnrichment } from '@/lib/client-enrichment'
 import { Book, LoanRecord } from '../types'
 import { useTheme } from '../hooks/use-theme'
 import { useDialog } from '../hooks/use-dialog'
-import { localToday } from '@/lib/library-domain'
+import { localToday, ownershipOf } from '@/lib/library-domain'
 
 // App primary (rust/terracotta) — matches --primary in globals.css
 const PRIMARY_RGB = '196,106,79'
@@ -733,7 +733,7 @@ export default function EditModal({
                 <Group icon={paths.wallet} title="Ownership" dark={isDark}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Ownership" dark={isDark}>
-                      <SelectBox value={formData.ownership || (formData.purchased ? 'Purchased' : formData.status === 'Wishlist' ? 'None' : 'Gifted')} onChange={e => setFormData(previous => ({ ...previous, ownership: e.target.value as Book['ownership'], purchased: e.target.value === 'Purchased' }))} dark={isDark}>
+                      <SelectBox value={ownershipOf(formData)} onChange={e => setFormData(previous => ({ ...previous, ownership: e.target.value as Book['ownership'], purchased: e.target.value === 'Purchased' }))} dark={isDark}>
                         {['Purchased', 'Gifted', 'Borrowed', 'None'].map(value => <option key={value}>{value}</option>)}
                       </SelectBox>
                     </Field>
@@ -801,7 +801,7 @@ export default function EditModal({
                     <Field label="Due date / renew until" dark={isDark}><input type="date" value={activeLoan.expectedReturnDate || ''} min={activeLoan.dateLent} onChange={event => changeLoan({ expectedReturnDate: event.target.value || null })} className={inputCls} style={inputStyle} /></Field>
                     <Field label="Loan notes" dark={isDark}><input value={activeLoan.notes} onChange={event => changeLoan({ notes: event.target.value })} className={inputCls} style={inputStyle} /></Field>
                     <button type="button" onClick={() => changeLoan({ dateReturned: localToday() })} className={inputCls} style={inputStyle}>Record return today</button>
-                  </div> : <button type="button" disabled={formData.format !== 'Physical' || !['Purchased', 'Gifted'].includes(formData.ownership || (formData.purchased ? 'Purchased' : 'Gifted'))} onClick={() => setFormData(previous => ({ ...previous, loans: [...previous.loans, { id: crypto.randomUUID(), borrowerName: '', dateLent: localToday(), expectedReturnDate: null, dateReturned: null, notes: '' }] }))} className={inputCls} style={inputStyle}>Lend this physical copy</button>}
+                  </div> : <button type="button" disabled={formData.format !== 'Physical' || !['Purchased', 'Gifted'].includes(ownershipOf(formData))} onClick={() => setFormData(previous => ({ ...previous, loans: [...previous.loans, { id: crypto.randomUUID(), borrowerName: '', dateLent: localToday(), expectedReturnDate: null, dateReturned: null, notes: '' }] }))} className={inputCls} style={inputStyle}>Lend this physical copy</button>}
                   {formData.loans.filter(loan => loan.dateReturned).map(loan => <p key={loan.id} className="text-sm" style={{ color: P.body }}>{loan.borrowerName}: {loan.dateLent} → returned {loan.dateReturned}</p>)}
                 </Group>
 

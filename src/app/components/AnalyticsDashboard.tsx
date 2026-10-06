@@ -1,6 +1,6 @@
 'use client'
 
-import { completionDates } from '@/lib/library-domain'
+import { completionDates, ownershipOf } from '@/lib/library-domain'
 import { saveAnnualGoalAction } from '../actions'
 import { useTheme } from '../hooks/use-theme'
 import { Book } from '../types'
@@ -67,7 +67,7 @@ export default function AnalyticsDashboard({ books, annualGoal, onGoalChange }: 
 
   const readBooks = books.filter(b => b.status === 'Read')
   const reading = books.filter(b => b.status === 'Reading')
-  const owned = books.filter(b => ['Purchased', 'Gifted'].includes(b.ownership || (b.purchased ? 'Purchased' : 'Gifted')))
+  const owned = books.filter(b => ['Purchased', 'Gifted'].includes(ownershipOf(b)))
   const investment = new Map<string, number>()
   for (const book of books) investment.set(book.currency || 'INR', (investment.get(book.currency || 'INR') || 0) + book.investedAmount)
   const totalInvestment = [...investment].map(([currency, amount]) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)).join(' · ')

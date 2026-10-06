@@ -1,4 +1,8 @@
-import type { Book, ReadingSpan } from '@/app/types'
+import type { Book, Ownership, ReadingSpan } from '@/app/types'
+
+export function ownershipOf(book: Pick<Partial<Book>, 'ownership' | 'purchased'>): Ownership {
+  return book.ownership || (book.purchased ? 'Purchased' : 'None')
+}
 
 export function localToday(): string {
   const now = new Date()

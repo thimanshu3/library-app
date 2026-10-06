@@ -33,7 +33,7 @@ The additive migrations introduce Editions, typed money/calendar dates, independ
 
 ## Library workflows
 
-Manual add/edit includes title, author, shelf, ownership, currency, reading dates, tags, collections, review, and private notes. Lending supports due dates, renewal, return, and retained history. Saves wait for the database; failed or conflicting edits keep the draft. A new draft has a stable creation token so retries create one copy. Shared Work metadata updates across its copies; reader events update their copy independently.
+Manual add/edit includes title, author, shelf, ownership, currency, reading dates, tags, collections, review, and private notes. New books and imports without an explicit ownership or purchased flag default to no ownership; reading status does not imply possession. Lending supports due dates, renewal, return, and retained history. Saves wait for the database; failed or conflicting edits keep the draft. A new draft has a stable creation token so retries create one copy. Shared Work metadata updates across its copies; reader events update their copy independently.
 
 Normal listings fetch 20 records with validated database filters and stable cursor ordering. Analytics, loans, wishlist checks, duplicate lookup, facets, and export use the complete library. Offers record amount/currency/source/check time separately from acquisition costs. Annual reading goals persist. Heatmap and Wrapped use recorded sessions and completion history.
 

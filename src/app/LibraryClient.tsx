@@ -14,7 +14,7 @@ import { replayReading } from './hooks/use-reading-session'
 import { useTheme, setTheme } from './hooks/use-theme'
 import type { ViewMode } from './components/LibraryShared'
 import { useLibrary, readApi } from './hooks/use-library'
-import { localToday, attachmentType } from '@/lib/library-domain'
+import { localToday, attachmentType, ownershipOf } from '@/lib/library-domain'
 import {
   NEUTRAL_RGB,
   chipShadow,
@@ -197,7 +197,7 @@ export default function LibraryClient({ initialBooks, initialTotalCount, initial
   const resetFilters = () => { void setFilters(null) }
   const hasActiveFilters = search || [statusFilter,volumeFilter,genreFilter,authorFilter,yearFilter,formatFilter,purchasedFilter,shelfFilter].some(value => value !== 'All') || sortBy !== 'id'
   async function suggestNextRead() {
-    const unread = allBooks.filter(book => book.status === 'Unread' && ['Purchased','Gifted'].includes(book.ownership || (book.purchased ? 'Purchased' : 'None')) && !book.loans.some(loan => !loan.dateReturned))
+    const unread = allBooks.filter(book => book.status === 'Unread' && ['Purchased','Gifted'].includes(ownershipOf(book)) && !book.loans.some(loan => !loan.dateReturned))
     if (unread.length) await openView(unread[Math.floor(Math.random() * unread.length)])
     else toast(overviewLoading ? 'Library totals are still loading.' : 'No available owned unread copies found.', 'info')
   }

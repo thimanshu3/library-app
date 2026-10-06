@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import type { Book } from '@/app/types'
 import prisma from '@/lib/prisma'
-import { advanceReadingHistory, attachmentType, dateKey } from '@/lib/library-domain'
+import { advanceReadingHistory, attachmentType, dateKey, ownershipOf } from '@/lib/library-domain'
 import { BookSchema, SessionSchema, validate } from './library-validation'
 import { bookInclude, toBook } from './library-mapper'
 import { HttpError } from './errors'
@@ -88,7 +88,7 @@ export async function saveOne(input: unknown, options: { importing?: boolean } =
     if (!matchingEdition) await tx.edition.upsert({ where: { id: editionId }, create: { id: editionId, ...editionData }, update: {} })
     const nextAttachment = book.pdfPath ? await attachmentKey(tx, book.pdfPath) : null
     const history = advanceReadingHistory(book, previous)
-    const ownership = book.ownership || (book.purchased ? 'Purchased' : book.status === 'Wishlist' ? 'None' : 'Gifted')
+    const ownership = ownershipOf(book)
     const invested = previous && previous.investedAmount === previous.purchasePrice && previous.purchasePrice !== book.purchasePrice && previous.investedAmount === book.investedAmount
       ? book.purchasePrice : book.investedAmount
     const data = {

@@ -11,7 +11,7 @@ import {
   raised,
   statusTheme
 } from '../clay'
-import { progressPercent } from '@/lib/library-domain'
+import { ownershipOf, progressPercent } from '@/lib/library-domain'
 import { Book } from '../types'
 
 // Change to match your currency
@@ -611,7 +611,7 @@ export default function BookListCard({
                 Loaned
                 {typeof book.givenTo === 'string' ? ` to ${book.givenTo}` : ''}
               </Tag>
-            ) : ['Purchased', 'Gifted'].includes(book.ownership || (book.purchased ? 'Purchased' : 'None')) ? (
+            ) : ['Purchased', 'Gifted'].includes(ownershipOf(book)) ? (
               <Tag
                 dark={dark}
                 rgb="16,185,129"

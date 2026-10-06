@@ -34,7 +34,7 @@ export const BookSchema = z.object({
   format: z.enum(['Physical', 'PDF', 'Ebook', 'EPUB', 'Kindle', 'Audiobook', 'None']).default('Physical'),
   condition: z.enum(['New', 'Good', 'Worn', 'Damaged']).default('Good'),
   shelfLocation: text(500), shelfRow: z.string().max(500).optional(),
-  purchased: z.boolean().default(true), ownership: z.enum(['Purchased', 'Gifted', 'Borrowed', 'None']).optional(),
+  purchased: z.boolean().default(false), ownership: z.enum(['Purchased', 'Gifted', 'Borrowed', 'None']).optional(),
   currency: z.string().regex(/^[A-Z]{3}$/).default('INR'), purchasePrice: money, investedAmount: money,
   status: z.enum(['Unread', 'Reading', 'Read', 'Wishlist']).default('Unread'),
   pdfPath: text(2048).refine(value => !value || /^\/(api\/files|pdfs)\/[^/?#]+\.(pdf|epub)$/i.test(value) || /^https:\/\//.test(value), 'Use an uploaded ebook or an HTTPS ebook URL.'),

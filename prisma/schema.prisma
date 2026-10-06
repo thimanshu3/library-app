@@ -85,7 +85,7 @@ model Copy {
   readCount                Int?
   spoiler                  String?
   editionId                String?
-  ownership                String @default("Purchased")
+  ownership                String @default("None")
   currency                 String @default("INR")
   readingSpans             Json?
   readingStartedAt         DateTime? @db.Date

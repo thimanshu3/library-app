@@ -2,7 +2,7 @@
 import BookCover from './BookCover'
 
 import type { CSSProperties, ReactNode } from 'react'
-import { progressPercent } from '@/lib/library-domain'
+import { ownershipOf, progressPercent } from '@/lib/library-domain'
 import { Book } from '../types'
 
 // Change to match your currency
@@ -274,7 +274,7 @@ export default function BookCard({
 
   // Derived display data
   const hasFormat = book.format && book.format !== 'None'
-  const isOwned = ['Purchased', 'Gifted'].includes(book.ownership || (book.purchased ? 'Purchased' : 'None'))
+  const isOwned = ['Purchased', 'Gifted'].includes(ownershipOf(book))
   const copiesN =
     b.ownedCopies || (Array.isArray(b.copies) ? b.copies.length : 0)
   const year = book.launchYear || b.originalPublicationYear || b.yearPublished
