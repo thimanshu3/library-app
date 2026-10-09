@@ -1,14 +1,18 @@
 'use server'
 
+import { dateKey } from '@/lib/library-domain'
 import prisma from '@/lib/prisma'
-import { databaseRead } from '@/lib/server/database-read'
 import { actionError } from '@/lib/server/action-result'
 import { requireOwner } from '@/lib/server/auth'
+import { databaseRead } from '@/lib/server/database-read'
 import { HttpError } from '@/lib/server/http'
 import { bookInclude, toBook } from '@/lib/server/library-mapper'
-import { deleteCopies, saveOne, markCopiesRead } from '@/lib/server/library-mutations'
+import {
+  deleteCopies,
+  markCopiesRead,
+  saveOne
+} from '@/lib/server/library-mutations'
 import { allBooks, queryBooks } from '@/lib/server/library-query'
-import { dateKey } from '@/lib/library-domain'
 import { validate } from '@/lib/server/library-validation'
 import { revalidatePath } from 'next/cache'
 import { createHash } from 'node:crypto'
@@ -34,10 +38,12 @@ export async function fetchFilteredBooksAction(
 
 export async function fetchBookAction(id: string) {
   await requireOwner()
-  const copy = await databaseRead(() => prisma.copy.findUnique({
-    where: { id },
-    include: bookInclude
-  }))
+  const copy = await databaseRead(() =>
+    prisma.copy.findUnique({
+      where: { id },
+      include: bookInclude
+    })
+  )
   if (!copy) throw new HttpError(404, 'This copy no longer exists.')
   return toBook(copy)
 }
@@ -108,14 +114,20 @@ export async function deleteCopiesAction(input: unknown) {
 }
 
 function importCopyId(value: unknown): string {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, 'The book record is invalid.')
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new HttpError(400, 'The book record is invalid.')
   const source = value as Partial<Book>
   if (source.id) {
-    if (typeof source.id !== 'string' || source.id.length > 180) throw new HttpError(400, 'The copy identifier is invalid.')
+    if (typeof source.id !== 'string' || source.id.length > 180)
+      throw new HttpError(400, 'The copy identifier is invalid.')
     return source.id
   }
-  const identity = source.goodreadsId || source.isbn?.replace(/[-\s]/g, '') || `${source.title?.trim().toLowerCase()}|${source.author?.trim().toLowerCase()}`
-  if (typeof identity !== 'string') throw new HttpError(400, 'The import identity is invalid.')
+  const identity =
+    source.goodreadsId ||
+    source.isbn?.replace(/[-\s]/g, '') ||
+    `${source.title?.trim().toLowerCase()}|${source.author?.trim().toLowerCase()}`
+  if (typeof identity !== 'string')
+    throw new HttpError(400, 'The import identity is invalid.')
   return `c_import_${createHash('sha256').update(identity).digest('hex')}`
 }
 
@@ -127,10 +139,23 @@ export async function importBookBatchAction(input: unknown) {
     state: 'created' | 'skipped' | 'error'
     error?: string
   }[] = []
-  const ids = rows.flatMap(row => { try { return [importCopyId(row)] } catch { return [] } })
-  const existingIds = new Set((await databaseRead(() => prisma.copy.findMany({
-    where: { id: { in: ids } }, select: { id: true }
-  }))).map(copy => copy.id))
+  const ids = rows.flatMap(row => {
+    try {
+      return [importCopyId(row)]
+    } catch {
+      return []
+    }
+  })
+  const existingIds = new Set(
+    (
+      await databaseRead(() =>
+        prisma.copy.findMany({
+          where: { id: { in: ids } },
+          select: { id: true }
+        })
+      )
+    ).map(copy => copy.id)
+  )
   for (const [index, inputBook] of rows.entries()) {
     try {
       if (!inputBook || typeof inputBook !== 'object')
@@ -184,7 +209,8 @@ export async function saveLibraryAction(
   _copies: BookCopy[]
 ) {
   await requireOwner()
-  void _works; void _copies
+  void _works
+  void _copies
   return {
     error:
       'Whole-library saves are no longer supported. Save the selected book instead.'
@@ -217,9 +243,22 @@ export async function saveAnnualGoalAction(input: unknown) {
 export async function markCopiesReadAction(input: unknown) {
   await requireOwner()
   try {
-    const { ids, day } = validate(z.object({ ids: z.array(z.string().min(1).max(180)).min(1).max(100), day: z.string().refine(value => !!dateKey(value)) }), input)
+    const { ids, day } = validate(
+      z.object({
+        ids: z.array(z.string().min(1).max(180)).min(1).max(100),
+        day: z.string().refine(value => !!dateKey(value))
+      }),
+      input
+    )
     const result = await markCopiesRead([...new Set(ids)], day)
     revalidatePath('/')
     return { ...result, success: true, error: undefined }
-  } catch (error) { return { processed: 0, changed: 0, success: false, ...actionError(error, 'Unable to mark the selected copies read.') } }
+  } catch (error) {
+    return {
+      processed: 0,
+      changed: 0,
+      success: false,
+      ...actionError(error, 'Unable to mark the selected copies read.')
+    }
+  }
 }
